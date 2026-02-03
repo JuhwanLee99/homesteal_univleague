@@ -7,10 +7,10 @@ import { useAdmin } from '../shared/auth/useAdmin';
 import { useDemoStore } from '../shared/state/demoStore';
 import { ContentProvider } from '../shared/state/contentProvider';
 
-const NOTIFICATION_PROMPT_KEY = 'aubl:notificationPrompt:v1';
+const NOTIFICATION_PROMPT_KEY = 'homesteal:notificationPrompt:v1';
 const NOTIFICATION_PROMPT_SNOOZE_MS = 1000 * 60 * 60 * 24; // 24시간 동안 재등장 방지
 const NOTIFICATION_PROMPT_SNOOZE_WEEK_MS = NOTIFICATION_PROMPT_SNOOZE_MS * 7; // 1주일 동안 재등장 방지
-const MOBILE_NOTICE_KEY = 'aubl:mobileNotice:v1';
+const MOBILE_NOTICE_KEY = 'homesteal:mobileNotice:v1';
 const MOBILE_NOTICE_SNOOZE_MS = 1000 * 60 * 60 * 24; // 모바일 팝업 24시간 스누즈
 
 export default function Layout() {
@@ -20,7 +20,6 @@ export default function Layout() {
   const { state } = useDemoStore();
   const isLiveOverlay = location.pathname === '/live-overlay';
   const isScoreboardText = location.pathname === '/scoreboard-text';
-  const isLanding = location.pathname === '/';
   const headerInnerRef = useRef<HTMLDivElement>(null);
   const linkRefs = useRef<Record<string, HTMLAnchorElement | null>>({});
   const [previewMode, setPreviewMode] = useState<'desktop' | 'mobile'>(() =>
@@ -229,15 +228,15 @@ export default function Layout() {
         label: '리그 소개',
         children: [
           { path: '/rules', label: '회칙' },
-          { path: '/intro/teams', label: '참가팀 · 조편성' },
+          { path: '/intro/teams', label: '참가팀' },
         ],
       },
       {
         path: '/schedule',
         label: '경기 일정',
         children: [
+          { path: '/schedule', label: '정규리그 · 포스트시즌' },
           { path: '/schedule/results', label: '경기 결과' },
-          { path: '/schedule/groups', label: '조별 일정' },
           { path: '/schedule/practice', label: '연습경기' },
           { path: '/schedule/manage', label: '일정 관리', requiresAdmin: true },
         ],
@@ -250,21 +249,22 @@ export default function Layout() {
           { path: '/records/batters', label: '타자 기록' },
         ],
       },
-      { path: '/community', label: '커뮤니티' },
+      {
+        path: '/community',
+        label: '커뮤니티',
+        children: [
+          { path: '/community/notices', label: '공지사항' },
+          { path: '/community/board', label: '자유게시판' },
+        ],
+      },
       {
         path: '/standings',
         label: '순위',
         children: [{ path: '/standings/power-ranking', label: '파워랭킹' }],
       },
-      { path: '/prediction', label: '승부예측' },
       // 기록원: 항상 보이지만 비관리자는 클릭 시 안내 버블만 노출
       { path: '/scorekeeper', label: '기록원', requiresAdmin: true, showWhenBlocked: true },
-      // 사용설명서: 외부 링크
-      {
-        path: 'https://docs.google.com/document/d/e/2PACX-1vRYQNkS6wuqoYWokWN_rnPpmZuWLHcNyn_j5K5Vhw3g8voduO20VMJYFH_3FTjW9Whgk7nxywV8ps_9/pub',
-        label: '사용설명서',
-        isExternal: true,
-      },
+      { path: '/manual', label: '사용설명서' },
     ],
     [],
   );
@@ -375,14 +375,14 @@ export default function Layout() {
                   fontSize: 'clamp(20px, 4vw, 24px)',
                   fontWeight: 900,
                   letterSpacing: '-0.03em',
-                  color: isLanding ? '#c084fc' : '#60a5fa',
+                  color: '#cbd5e1',
                   whiteSpace: 'nowrap',
                 }}
               >
-                AUBL
+                HOMESTEAL
                 <span
                   style={{
-                    color: isLanding ? '#f97316' : '#3b82f6',
+                    color: '#cbd5e1',
                     transition: 'color 140ms ease',
                   }}
                 >
@@ -423,8 +423,8 @@ export default function Layout() {
 
                     const style = {
                       fontSize: 'var(--nav-font-size)',
-                      fontWeight: 700,
-                      color: blocked ? 'rgba(203,213,225,0.55)' : isActive || isHovering ? '#f97316' : '#cbd5e1',
+                      fontWeight: 900,
+                      color: blocked ? 'rgba(203,213,225,0.55)' : isActive || isHovering ? '#93c5fd' : '#e2e8f0',
                       transition: 'color 120ms ease',
                       whiteSpace: 'nowrap',
                       scrollSnapAlign: 'start',
@@ -506,7 +506,7 @@ export default function Layout() {
                     top: tooltip.y + 10,
                     transform: 'translate(-50%, 0)',
                     background: 'rgba(15,23,42,0.95)',
-                    color: '#f97316',
+                    color: '#bfdbfe',
                     padding: '8px 12px',
                     borderRadius: '10px',
                     border: '1px solid rgba(148,163,184,0.35)',
@@ -541,14 +541,14 @@ export default function Layout() {
                     aria-current="page"
                     style={{
                       border: 'none',
-                      background: '#f97316',
-                      color: '#0b0f1a',
+                      background: 'linear-gradient(120deg, #1e3a8a, #1d4ed8)',
+                      color: '#eaf2ff',
                       fontWeight: 800,
                       fontSize: '13px',
                       borderRadius: '999px',
                       padding: '6px 12px',
                       textDecoration: 'none',
-                      boxShadow: '0 8px 18px rgba(249,115,22,0.35)',
+                      boxShadow: '0 8px 18px rgba(29,78,216,0.3)',
                       whiteSpace: 'nowrap',
                     }}
                   >
@@ -576,9 +576,9 @@ export default function Layout() {
                   ) : (
                     <span
                       style={{
-                        border: '1px dashed rgba(248,113,113,0.6)',
-                        background: 'rgba(248,113,113,0.08)',
-                        color: '#fca5a5',
+                        border: '1px dashed rgba(59,130,246,0.65)',
+                        background: 'rgba(30,58,138,0.2)',
+                        color: '#bfdbfe',
                         fontWeight: 800,
                         fontSize: '13px',
                         borderRadius: '999px',
@@ -617,11 +617,11 @@ export default function Layout() {
                           style={{
                             padding: '6px 10px',
                             borderRadius: '10px',
-                            background: 'linear-gradient(120deg, rgba(249,115,22,0.3), rgba(253,186,116,0.35))',
-                            color: '#f97316',
+                            background: 'linear-gradient(120deg, rgba(30,58,138,0.34), rgba(37,99,235,0.32))',
+                            color: '#bfdbfe',
                             fontWeight: 800,
                             fontSize: '12px',
-                            border: '1px solid rgba(249,115,22,0.6)',
+                            border: '1px solid rgba(59,130,246,0.45)',
                             textTransform: 'uppercase',
                             letterSpacing: '0.02em',
                             display: 'inline-block',
@@ -692,13 +692,13 @@ export default function Layout() {
                   <Link
                     to="/login"
                     style={{
-                      background: 'linear-gradient(120deg, #f97316, #f59e0b)',
-                      color: '#0b0f1a',
+                      background: 'linear-gradient(120deg, #1e3a8a, #1d4ed8)',
+                      color: '#eaf2ff',
                       padding: '10px 14px',
                       borderRadius: '12px',
                       fontWeight: 900,
                       fontSize: '13px',
-                      boxShadow: '0 10px 24px rgba(249,115,22,0.35)',
+                      boxShadow: '0 10px 24px rgba(29,78,216,0.34)',
                     }}
                   >
                     로그인
@@ -755,9 +755,9 @@ export default function Layout() {
                         gap: '6px',
                         fontWeight: 800,
                         fontSize: '13px',
-                        color: isActiveChild || isHoveringChild ? '#f97316' : '#e2e8f0',
+                        color: isActiveChild || isHoveringChild ? '#bfdbfe' : '#e2e8f0',
                         padding: '6px 6px',
-                        borderBottom: isActiveChild ? '2px solid #f97316' : '2px solid transparent',
+                        borderBottom: isActiveChild ? '2px solid #60a5fa' : '2px solid transparent',
                         transition: 'color 120ms ease, border-color 120ms ease, transform 120ms ease',
                         whiteSpace: 'nowrap',
                         transform: isActiveChild ? 'translateY(-1px)' : 'translateY(0)',
@@ -799,7 +799,7 @@ export default function Layout() {
             <div style={{ display: 'flex', gap: '12px', alignItems: 'center', minWidth: '220px' }}>
               <span style={{ fontSize: '24px', lineHeight: 1 }}>💻</span>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <div style={{ fontSize: '15px', fontWeight: 900, color: '#fde68a' }}>PC 화면에 최적화된 사이트입니다.</div>
+            <div style={{ fontSize: '15px', fontWeight: 900, color: '#fde68a' }}>PC 화면에 최적화된 사이트입니다.</div>
                 <div style={{ fontSize: '13px', color: '#e2e8f0', lineHeight: 1.55 }}>
                   모바일 버전은 아직 최적화 중이라 일부 레이아웃이 깨질 수 있어요. 원활한 이용을 위해 PC 브라우저 사용을 권장합니다.
                 </div>
@@ -810,13 +810,13 @@ export default function Layout() {
                 type="button"
                 onClick={handleMobileNoticeConfirm}
                 style={{
-                  background: 'linear-gradient(120deg, #f59e0b, #f97316)',
-                  color: '#0b0f1a',
+                  background: 'linear-gradient(120deg, #1e3a8a, #1d4ed8)',
+                  color: '#eaf2ff',
                   padding: '11px 14px',
                   fontWeight: 900,
                   fontSize: '13px',
                   borderRadius: '12px',
-                  boxShadow: '0 10px 24px rgba(249,115,22,0.35)',
+                  boxShadow: '0 10px 24px rgba(29,78,216,0.32)',
                 }}
               >
                 확인
@@ -867,7 +867,7 @@ export default function Layout() {
               marginBottom: '18px',
               borderRadius: '18px',
               border: '1px solid rgba(96,165,250,0.28)',
-              background: 'linear-gradient(120deg, rgba(59,130,246,0.16), rgba(249,115,22,0.16))',
+              background: 'linear-gradient(120deg, rgba(59,130,246,0.16), rgba(215,31,41,0.16))',
               boxShadow: '0 16px 40px rgba(0,0,0,0.35)',
             }}
           >
@@ -901,7 +901,7 @@ export default function Layout() {
                 onClick={handleRequestNotification}
                 disabled={notificationRequesting}
                 style={{
-                  background: 'linear-gradient(120deg, #f97316, #f59e0b)',
+                  background: 'linear-gradient(120deg, #d71f29, #ef4444)',
                   color: '#0b0f1a',
                   padding: '12px 16px',
                   fontWeight: 900,
@@ -1017,7 +1017,7 @@ export default function Layout() {
           }}
         >
           <div style={{ maxWidth: '1600px', margin: '0 auto', padding: '0 24px' }}>
-            &copy; 2026 Amateur University Baseball League. All rights reserved.
+            &copy; 2026 Homsteal Univleague. All rights reserved.
           </div>
           <div className="preview-toggle-inline">
             <span className="preview-toggle-inline__label">보기 전환</span>

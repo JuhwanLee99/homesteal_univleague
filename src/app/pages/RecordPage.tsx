@@ -46,7 +46,7 @@ export default function RecordPage() {
       const team = TEAMS.find((t) => t.id === record.teamId);
       return {
         ...record,
-        teamName: team?.name ?? 'AUBL Team',
+        teamName: team?.name ?? 'Homsteal Team',
         division: team?.division ?? 'EUTTEUM',
         color: team?.logoColor ?? '#f97316',
         founded: team?.founded ?? 1981,

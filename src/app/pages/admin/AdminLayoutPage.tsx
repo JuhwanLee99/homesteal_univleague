@@ -1,10 +1,11 @@
 import { NavLink, Outlet } from 'react-router-dom';
 
 const tabs = [
+  { path: '/admin/brand', label: '브랜드 관리' },
   { path: '/admin/landing', label: '랜딩 관리' },
   { path: '/admin/intro', label: '리그 소개 관리' },
   { path: '/admin/rules', label: '회칙 관리' },
-  { path: '/admin/teams', label: '참가팀 · 조편성 관리' },
+  { path: '/admin/teams', label: '참가팀 관리' },
 ] as const;
 
 export default function AdminLayoutPage() {
@@ -12,7 +13,7 @@ export default function AdminLayoutPage() {
     <div style={{ display: 'grid', gap: '18px', padding: 'var(--section-padding) 0' }}>
       <header style={{ display: 'grid', gap: '10px' }}>
         <h1 style={{ margin: 0, fontSize: '30px', fontWeight: 900, color: '#e2e8f0' }}>콘텐츠 CMS</h1>
-        <p style={{ margin: 0, color: '#94a3b8', fontWeight: 700 }}>랜딩 · 리그소개 · 회칙 · 참가팀/조편성을 관리합니다.</p>
+        <p style={{ margin: 0, color: '#94a3b8', fontWeight: 700 }}>브랜드 · 랜딩 · 리그소개 · 회칙 · 참가팀 정보를 관리합니다.</p>
       </header>
 
       <nav style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>

@@ -1,404 +1,168 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useDemoStore } from '../../shared/state/demoStore';
-import { useAdmin } from '../../shared/auth/useAdmin';
-import { TEAM_GROUPS, GROUP_LETTERS, GROUP_COLORS } from '../../shared/lib/teamGroups';
-import type { GroupLetter } from '../../shared/lib/teamGroups';
-import type { MatchSchedule } from '../../shared/state/demoStore';
-import { useContent } from '../../shared/state/contentProvider';
+import type { MatchPhase, MatchSchedule } from '../../shared/state/demoStore';
 
-/* ─── 탭 정의 ─── */
-
-type TabKey = 'ALL' | GroupLetter | 'EUTTEUM' | 'BEOGEUM';
-
-interface Tab {
-  key: TabKey;
-  label: string;
-  color: string;
-  section: 'group' | 'postseason';
+function safeTime(value: string) {
+  const ts = new Date(value).getTime();
+  return Number.isNaN(ts) ? 0 : ts;
 }
 
-const groupTabs: Tab[] = [
-  { key: 'ALL', label: '전체', color: '#94a3b8', section: 'group' },
-  ...GROUP_LETTERS.map((g): Tab => ({ key: g, label: `${g}조`, color: GROUP_COLORS[g], section: 'group' })),
-];
-
-const postseasonTabs: Tab[] = [
-  { key: 'EUTTEUM', label: '으뜸', color: '#4f46e5', section: 'postseason' },
-  { key: 'BEOGEUM', label: '버금', color: '#10b981', section: 'postseason' },
-];
-
-/* ─── 매치 → 조 판별 ─── */
-
-function deriveMatchGroup(match: MatchSchedule, teamNameToGroup: ReadonlyMap<string, GroupLetter>): GroupLetter | null {
-  const homeGroup = teamNameToGroup.get(match.homeTeamName);
-  const awayGroup = teamNameToGroup.get(match.awayTeamName);
-  // 양팀이 같은 조면 → 조별 리그 경기
-  if (homeGroup && awayGroup && homeGroup === awayGroup) return homeGroup;
-  // 한쪽만 매핑되면 해당 조로 추정
-  if (homeGroup && !awayGroup) return homeGroup;
-  if (awayGroup && !homeGroup) return awayGroup;
-  return null;
+function derivePhase(match: MatchSchedule): MatchPhase {
+  if (match.phase) return match.phase;
+  if ((match.recordMode ?? 'official') === 'practice') return 'PRACTICE';
+  return 'REGULAR';
 }
 
-function isPostseasonMatch(match: MatchSchedule, teamNameToGroup: ReadonlyMap<string, GroupLetter>): boolean {
-  // division이 명시적으로 지정된 경우 or 양팀이 다른 조
-  if (match.division === 'EUTTEUM' || match.division === 'BEOGEUM') return true;
-  const homeGroup = teamNameToGroup.get(match.homeTeamName);
-  const awayGroup = teamNameToGroup.get(match.awayTeamName);
-  if (homeGroup && awayGroup && homeGroup !== awayGroup) return true;
-  return false;
-}
-
-/* ─── 컴포넌트 ─── */
-
-const cardBase: React.CSSProperties = {
-  borderRadius: '16px',
-  padding: '14px',
-  border: '1px solid rgba(148,163,184,0.25)',
-  background: 'rgba(15,23,42,0.7)',
+const TAB_META: Record<'REGULAR' | 'POSTSEASON', { label: string; color: string }> = {
+  REGULAR: { label: '정규리그', color: '#60a5fa' },
+  POSTSEASON: { label: '포스트시즌', color: '#f97316' },
 };
 
+function statusLabel(match: MatchSchedule) {
+  if (match.status === 'inProgress') return { text: '진행 중', color: '#38bdf8', bg: 'rgba(56,189,248,0.16)' };
+  if (match.status === 'completed') return { text: '종료', color: '#f97316', bg: 'rgba(249,115,22,0.16)' };
+  if (match.status === 'canceled') return { text: '취소', color: '#94a3b8', bg: 'rgba(148,163,184,0.2)' };
+  return { text: '예정', color: '#22c55e', bg: 'rgba(34,197,94,0.16)' };
+}
+
 export default function ScheduleGroupsPage() {
-  const { content } = useContent();
   const { state, actions } = useDemoStore();
-  const navigate = useNavigate();
-  const { isAdmin } = useAdmin();
-  const [tooltip, setTooltip] = useState<{ text: string; x: number; y: number } | null>(null);
-  const [activeTab, setActiveTab] = useState<TabKey>('ALL');
-  const matches = state.matches;
-  const teamNameToGroup = useMemo(() => {
-    const source = content.teams.entries.length ? content.teams.entries : TEAM_GROUPS;
-    return new Map(source.map((entry) => [entry.name, entry.group])) as ReadonlyMap<string, GroupLetter>;
-  }, [content.teams.entries]);
+  const [tab, setTab] = useState<'REGULAR' | 'POSTSEASON'>('REGULAR');
 
   useEffect(() => {
     void actions.loadFullSchedule();
   }, [actions]);
 
-  const showBlockedTooltip = useCallback((el: HTMLElement | null) => {
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    setTooltip({ text: '관리자 로그인이 필요합니다', x: rect.left + rect.width / 2, y: rect.bottom });
-  }, []);
+  const { regular, postseason } = useMemo(() => {
+    const alive = state.matches.filter((match) => !match.deleted && derivePhase(match) !== 'PRACTICE');
+    const regularMatches = alive
+      .filter((match) => derivePhase(match) === 'REGULAR')
+      .sort((a, b) => safeTime(a.startTime) - safeTime(b.startTime));
+    const postseasonMatches = alive
+      .filter((match) => derivePhase(match) === 'POSTSEASON')
+      .sort((a, b) => safeTime(a.startTime) - safeTime(b.startTime));
+    return { regular: regularMatches, postseason: postseasonMatches };
+  }, [state.matches]);
 
-  const alive = useMemo(() => matches.filter((m) => !m.deleted), [matches]);
-
-  // 조별 리그 경기 분류
-  const groupMatches = useMemo(() => {
-    const byGroup: Record<GroupLetter, MatchSchedule[]> = {} as Record<GroupLetter, MatchSchedule[]>;
-    GROUP_LETTERS.forEach((g) => { byGroup[g] = []; });
-    alive.forEach((match) => {
-      if (isPostseasonMatch(match, teamNameToGroup)) return;
-      const group = deriveMatchGroup(match, teamNameToGroup);
-      if (group) byGroup[group].push(match);
-    });
-    GROUP_LETTERS.forEach((g) => {
-      byGroup[g].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
-    });
-    return byGroup;
-  }, [alive, teamNameToGroup]);
-
-  // 포스트시즌 경기 분류
-  const postseasonMatches = useMemo(() => {
-    const byDiv: Record<'EUTTEUM' | 'BEOGEUM', MatchSchedule[]> = { EUTTEUM: [], BEOGEUM: [] };
-    alive.forEach((match) => {
-      if (!isPostseasonMatch(match, teamNameToGroup)) return;
-      const div = match.division === 'EUTTEUM' || match.division === 'BEOGEUM' ? match.division : null;
-      if (div) byDiv[div].push(match);
-    });
-    (['EUTTEUM', 'BEOGEUM'] as const).forEach((k) => {
-      byDiv[k].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
-    });
-    return byDiv;
-  }, [alive, teamNameToGroup]);
-
-  const hasPostseason = postseasonMatches.EUTTEUM.length > 0 || postseasonMatches.BEOGEUM.length > 0;
-
-  // 현재 탭에 따른 표시 데이터
-  const visibleSections = useMemo(() => {
-    if (activeTab === 'ALL') {
-      return GROUP_LETTERS.map((g) => ({
-        key: g,
-        label: `${g}조`,
-        color: GROUP_COLORS[g],
-        matches: groupMatches[g],
-      }));
-    }
-    if (activeTab === 'EUTTEUM' || activeTab === 'BEOGEUM') {
-      const label = activeTab === 'EUTTEUM' ? '으뜸' : '버금';
-      const color = activeTab === 'EUTTEUM' ? '#4f46e5' : '#10b981';
-      return [{ key: activeTab, label, color, matches: postseasonMatches[activeTab] }];
-    }
-    // 개별 조
-    const g = activeTab as GroupLetter;
-    return [{ key: g, label: `${g}조`, color: GROUP_COLORS[g], matches: groupMatches[g] }];
-  }, [activeTab, groupMatches, postseasonMatches]);
-
-  const totalGroupCount = useMemo(
-    () => GROUP_LETTERS.reduce((sum, g) => sum + groupMatches[g].length, 0),
-    [groupMatches],
-  );
+  const matches = tab === 'REGULAR' ? regular : postseason;
 
   return (
-    <div style={{ display: 'grid', gap: '18px' }}>
-      {tooltip && (
-        <div
-          style={{
-            position: 'fixed',
-            left: tooltip.x,
-            top: tooltip.y + 10,
-            transform: 'translate(-50%, 0)',
-            background: 'rgba(15,23,42,0.95)',
-            color: '#f97316',
-            padding: '8px 12px',
-            borderRadius: '10px',
-            border: '1px solid rgba(148,163,184,0.35)',
-            fontSize: '12px',
-            fontWeight: 700,
-            whiteSpace: 'nowrap',
-            boxShadow: '0 10px 30px rgba(0,0,0,0.25)',
-            zIndex: 2000,
-          }}
-        >
-          {tooltip.text}
-        </div>
-      )}
-
-      {/* ── 헤더 ── */}
-      <header style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
-        <div>
-          <h1 style={{ margin: 0, fontSize: '28px', fontWeight: 900 }}>조별 일정</h1>
-          <p style={{ margin: '6px 0 0', color: '#94a3b8' }}>
-            A~H조 조별 리그{hasPostseason ? ' 및 포스트시즌(으뜸·버금)' : ''} 일정을 확인하세요.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => navigate('/schedule')}
-          style={{
-            padding: '10px 14px',
-            borderRadius: '12px',
-            border: '1px solid rgba(148,163,184,0.35)',
-            background: 'rgba(255,255,255,0.05)',
-            color: '#e2e8f0',
-            fontWeight: 800,
-            cursor: 'pointer',
-          }}
-        >
-          메인 일정 페이지
-        </button>
-      </header>
-
-      {/* ── 탭 ── */}
-      <section style={{ display: 'grid', gap: '8px' }}>
-        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
-          <span style={{ color: '#64748b', fontWeight: 700, fontSize: '12px', marginRight: '4px' }}>조별 리그</span>
-          {groupTabs.map((tab) => {
-            const isActive = activeTab === tab.key;
-            const count = tab.key === 'ALL' ? totalGroupCount : groupMatches[tab.key as GroupLetter]?.length ?? 0;
+    <div style={{ display: 'grid', gap: '16px' }}>
+      <header
+        style={{
+          display: 'grid',
+          gap: '8px',
+          borderRadius: '16px',
+          border: '1px solid rgba(248,113,113,0.3)',
+          background:
+            'radial-gradient(circle at 14% 20%, rgba(215,31,41,0.22), transparent 30%), linear-gradient(140deg, var(--hs-navy) 0%, var(--hs-ink) 100%)',
+          padding: '18px',
+        }}
+      >
+        <h1 style={{ margin: 0, fontSize: '28px', fontWeight: 900 }}>경기 일정</h1>
+        <p style={{ margin: 0, color: '#cbd5e1' }}>단일리그 정규시즌과 포스트시즌 일정을 탭으로 확인하세요.</p>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          {(Object.keys(TAB_META) as Array<'REGULAR' | 'POSTSEASON'>).map((key) => {
+            const active = tab === key;
+            const count = key === 'REGULAR' ? regular.length : postseason.length;
             return (
               <button
-                key={tab.key}
+                key={key}
                 type="button"
-                onClick={() => setActiveTab(tab.key)}
+                onClick={() => setTab(key)}
                 style={{
-                  padding: '8px 12px',
+                  padding: '10px 14px',
                   borderRadius: '10px',
+                  border: active ? `1px solid ${TAB_META[key].color}` : '1px solid rgba(148,163,184,0.35)',
+                  background: active ? `${TAB_META[key].color}22` : 'rgba(255,255,255,0.06)',
+                  color: active ? TAB_META[key].color : '#cbd5e1',
                   fontWeight: 800,
-                  fontSize: '13px',
-                  background: isActive ? `${tab.color}22` : 'rgba(255,255,255,0.04)',
-                  color: isActive ? tab.color : '#94a3b8',
-                  border: isActive ? `1.5px solid ${tab.color}55` : '1.5px solid rgba(148,163,184,0.12)',
                   cursor: 'pointer',
-                  transition: 'all 150ms ease',
                 }}
               >
-                {tab.label}
-                {count > 0 && <span style={{ marginLeft: '5px', fontSize: '11px', opacity: 0.7 }}>{count}</span>}
+                {TAB_META[key].label} ({count})
               </button>
             );
           })}
-        </div>
-
-        {hasPostseason && (
-          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
-            <span style={{ color: '#64748b', fontWeight: 700, fontSize: '12px', marginRight: '4px' }}>포스트시즌</span>
-            {postseasonTabs.map((tab) => {
-              const isActive = activeTab === tab.key;
-              const count = postseasonMatches[tab.key as 'EUTTEUM' | 'BEOGEUM']?.length ?? 0;
-              return (
-                <button
-                  key={tab.key}
-                  type="button"
-                  onClick={() => setActiveTab(tab.key)}
-                  style={{
-                    padding: '8px 12px',
-                    borderRadius: '10px',
-                    fontWeight: 800,
-                    fontSize: '13px',
-                    background: isActive ? `${tab.color}22` : 'rgba(255,255,255,0.04)',
-                    color: isActive ? tab.color : '#94a3b8',
-                    border: isActive ? `1.5px solid ${tab.color}55` : '1.5px solid rgba(148,163,184,0.12)',
-                    cursor: 'pointer',
-                    transition: 'all 150ms ease',
-                  }}
-                >
-                  {tab.label}
-                  {count > 0 && <span style={{ marginLeft: '5px', fontSize: '11px', opacity: 0.7 }}>{count}</span>}
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </section>
-
-      {/* ── 경기 목록 ── */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: activeTab === 'ALL' ? 'repeat(auto-fit, minmax(320px, 1fr))' : '1fr',
-          gap: '14px',
-        }}
-      >
-        {visibleSections.map((section) => (
-          <div
-            key={section.key}
+          <Link
+            to="/schedule/results"
             style={{
-              ...cardBase,
-              borderColor: `${section.color}55`,
-              background: `linear-gradient(145deg, rgba(15,23,42,0.9), rgba(15,23,42,0.74)), radial-gradient(circle at 12% 16%, ${section.color}26, transparent 42%)`,
+              marginLeft: 'auto',
+              padding: '10px 14px',
+              borderRadius: '10px',
+              border: '1px solid rgba(148,163,184,0.35)',
+              color: '#e2e8f0',
+              textDecoration: 'none',
+              fontWeight: 800,
             }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ width: '12px', height: '12px', borderRadius: '999px', background: section.color }} />
-                <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 900 }}>{section.label}</h2>
-              </div>
-              <span style={{ color: '#cbd5e1', fontWeight: 800, fontSize: '13px' }}>{section.matches.length} 경기</span>
-            </div>
+            경기 결과 보기
+          </Link>
+        </div>
+      </header>
 
-            <div style={{ display: 'grid', gap: '10px', marginTop: '10px' }}>
-              {section.matches.length ? (
-                section.matches.map((match) => {
-                  const isPast = new Date(match.startTime).getTime() < Date.now();
-                  const badge =
-                    match.status === 'completed' || isPast
-                      ? { text: '종료', color: '#f97316' }
-                      : { text: '예정', color: '#22c55e' };
-                  return (
-                    <div
-                      key={match.id}
-                      style={{
-                        padding: '10px 12px',
-                        borderRadius: '12px',
-                        border: '1px solid rgba(148,163,184,0.25)',
-                        background: 'rgba(255,255,255,0.03)',
-                        display: 'grid',
-                        gap: '6px',
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                        <span style={{ fontWeight: 800, color: '#e2e8f0' }}>
-                          {match.awayTeamName} vs {match.homeTeamName}
-                        </span>
-                        <span
-                          style={{
-                            padding: '2px 8px',
-                            borderRadius: '999px',
-                            background: `${badge.color}22`,
-                            color: badge.color,
-                            fontWeight: 800,
-                            fontSize: '11px',
-                          }}
-                        >
-                          {badge.text}
-                        </span>
-                      </div>
-                      <div
-                        style={{
-                          display: 'flex',
-                          gap: '8px',
-                          alignItems: 'center',
-                          color: '#94a3b8',
-                          fontSize: '12px',
-                          flexWrap: 'wrap',
-                        }}
-                      >
-                        <span>{new Date(match.startTime).toLocaleDateString('ko-KR')}</span>
-                        <span>· {match.venue}</span>
-                      </div>
-                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            actions.selectMatch(match.id);
-                            navigate('/scoreboard-text');
-                          }}
-                          style={{
-                            padding: '8px 10px',
-                            borderRadius: '10px',
-                            border: '1px solid rgba(148,163,184,0.35)',
-                            background: 'rgba(255,255,255,0.04)',
-                            color: '#cbd5e1',
-                            fontWeight: 800,
-                            cursor: 'pointer',
-                          }}
-                        >
-                          문자중계
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            if (!isAdmin) {
-                              showBlockedTooltip(e.currentTarget);
-                              return;
-                            }
-                            actions.selectMatch(match.id);
-                            navigate('/scorekeeper');
-                          }}
-                          onMouseEnter={(e) => {
-                            if (!isAdmin) showBlockedTooltip(e.currentTarget);
-                          }}
-                          onMouseLeave={() => setTooltip(null)}
-                          onFocus={(e) => {
-                            if (!isAdmin) showBlockedTooltip(e.currentTarget);
-                          }}
-                          onBlur={() => setTooltip(null)}
-                          style={{
-                            padding: '8px 10px',
-                            borderRadius: '10px',
-                            border: '1px solid rgba(148,163,184,0.35)',
-                            background: 'rgba(255,255,255,0.04)',
-                            color: isAdmin ? '#cbd5e1' : 'rgba(203,213,225,0.6)',
-                            fontWeight: 800,
-                            cursor: isAdmin ? 'pointer' : 'not-allowed',
-                          }}
-                        >
-                          기록 관리
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })
-              ) : (
-                <div
-                  style={{
-                    padding: '12px',
-                    borderRadius: '12px',
-                    border: '1px dashed rgba(148,163,184,0.35)',
-                    color: '#94a3b8',
-                    fontWeight: 700,
-                    background: 'rgba(255,255,255,0.02)',
-                  }}
-                >
-                  아직 등록된 {section.label} 일정이 없습니다.
+      {matches.length === 0 ? (
+        <div
+          style={{
+            borderRadius: '12px',
+            border: '1px dashed rgba(148,163,184,0.35)',
+            background: 'rgba(12,17,48,0.55)',
+            padding: '16px',
+            color: '#94a3b8',
+            fontWeight: 700,
+          }}
+        >
+          표시할 일정이 없습니다.
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gap: '10px' }}>
+          {matches.map((match) => {
+            const status = statusLabel(match);
+            return (
+              <article
+                key={match.id}
+                style={{
+                  borderRadius: '12px',
+                  border: '1px solid rgba(148,163,184,0.22)',
+                  background: 'rgba(12,17,48,0.62)',
+                  padding: '12px',
+                  display: 'grid',
+                  gap: '6px',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <div style={{ color: '#f8fafc', fontWeight: 800 }}>
+                    {match.awayTeamName} vs {match.homeTeamName}
+                  </div>
+                  <span
+                    style={{
+                      padding: '2px 8px',
+                      borderRadius: '999px',
+                      background: status.bg,
+                      color: status.color,
+                      fontWeight: 800,
+                      fontSize: '11px',
+                    }}
+                  >
+                    {status.text}
+                  </span>
                 </div>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
+                <div style={{ color: '#94a3b8', fontSize: '13px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  <span>{new Date(match.startTime).toLocaleString('ko-KR')}</span>
+                  <span>· {match.venue}</span>
+                </div>
+                {(typeof match.homeScore === 'number' || typeof match.awayScore === 'number') && (
+                  <div style={{ color: '#e2e8f0', fontWeight: 800 }}>
+                    스코어: {match.awayScore ?? '-'} : {match.homeScore ?? '-'}
+                    {match.isForfeit ? ' (몰수경기)' : ''}
+                  </div>
+                )}
+              </article>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

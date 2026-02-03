@@ -18,7 +18,7 @@ export default function MaintenancePage({
         alignItems: 'center',
         justifyContent: 'center',
         // 배경 설정 수정
-        background: `linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(30, 41, 59, 0.9) 50%, rgba(15, 23, 42, 0.9) 100%), url('/assets/aubl_clean.png')`,
+        background: `linear-gradient(135deg, rgba(15, 20, 100, 0.9) 0%, rgba(11, 16, 47, 0.92) 50%, rgba(15, 20, 100, 0.9) 100%), url('/assets/univ_league.jpg')`,
         backgroundSize: 'contain', // 이미지가 잘리지 않고 전체가 다 보이도록 설정 ('cover' -> 'contain')
         backgroundPosition: 'center', // 항상 중앙에 위치
         backgroundRepeat: 'no-repeat', // 이미지 반복 방지
@@ -36,8 +36,8 @@ export default function MaintenancePage({
           marginBottom: '32px',
         }}
       >
-        <span style={{ color: '#60a5fa' }}>AUBL</span>
-        <span style={{ color: '#f97316' }}>.</span>
+        <span style={{ color: '#e5e7eb' }}>HOMESTEAL</span>
+        <span style={{ color: '#d71f29' }}>.</span>
       </div>
 
       {/* 아이콘 */}
@@ -167,7 +167,7 @@ export default function MaintenancePage({
           color: '#475569',
         }}
       >
-        문의: aublcau@gmail.com
+        문의: homesteal_univleague
       </div>
 
       {/* 펄스 애니메이션 */}

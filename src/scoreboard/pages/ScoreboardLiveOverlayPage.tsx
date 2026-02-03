@@ -250,7 +250,7 @@ export default function ScoreboardLiveOverlayPage() {
     >
       <div style={containerStyle}>
         <iframe
-          title="AUBL Live Stream"
+          title="HOMESTEAL Live Stream"
           src={youtubeLiveSrc}
           style={{
             position: 'absolute',

@@ -21,7 +21,7 @@ const IS_TEST_MODE = import.meta.env.DEV && false;
 
 const MOCK_USER = {
   uid: 'test-local-user',
-  email: 'admin@aubl.com',
+  email: 'admin@homesteal.com',
   displayName: '테스트 관리자',
   emailVerified: true,
   getIdTokenResult: async () => ({

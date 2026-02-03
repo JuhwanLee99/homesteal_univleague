@@ -1,9 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { doc, getDoc, increment, onSnapshot, setDoc } from 'firebase/firestore';
 import { firestore } from '../firebase/client';
-import { TEAM_GROUPS } from '../lib/teamGroups';
 import type { GroupLetter } from '../lib/teamGroups';
-import { DEFAULT_RULE_CHAPTERS, DEFAULT_RULE_HOST_ORDER } from '../content/defaultRules';
+import { DEFAULT_RULE_HOST_ORDER } from '../content/defaultRules';
 
 export type HistoryHighlight = { title: string; desc: string; accent: string };
 export type GovernanceItem = { label: string; value: string; detail: string };
@@ -49,7 +48,7 @@ export type RulesContent = {
   appendixText: string;
 };
 
-export type TeamContentEntry = { name: string; group: GroupLetter };
+export type TeamContentEntry = { name: string; group?: GroupLetter };
 export type TeamsContent = {
   pageBadge: string;
   pageTitle: string;
@@ -58,7 +57,21 @@ export type TeamsContent = {
   entries: TeamContentEntry[];
 };
 
+export type BrandContent = {
+  leagueName: string;
+  seasonLabel: string;
+  leagueDescription: string;
+  instagramUrl: string;
+  rulesPdfPath: string;
+  teamLogoPath: string;
+  leagueLogoPath: string;
+  accentRed: string;
+  accentNavy: string;
+  accentLight: string;
+};
+
 export type ContentState = {
+  brand: BrandContent;
   tickerItems: string[];
   landing: LandingContent;
   intro: IntroContent;
@@ -66,137 +79,93 @@ export type ContentState = {
   teams: TeamsContent;
 };
 
+const DEFAULT_BRAND: BrandContent = {
+  leagueName: 'HOMESTEAL UNIVLEAGUE',
+  seasonLabel: '2026 HOMESTEAL CUP',
+  leagueDescription: '대학야구교류전 공식 웹 플랫폼',
+  instagramUrl: 'https://www.instagram.com/homesteal_univleague/',
+  rulesPdfPath: '/assets/homesteal-univleague-rules.pdf',
+  teamLogoPath: '/assets/homesteal.jpg',
+  leagueLogoPath: '/assets/univ_league.jpg',
+  accentRed: '#7a1221',
+  accentNavy: '#050a2a',
+  accentLight: '#e7eaf4',
+};
+
 const DEFAULT_LANDING: LandingContent = {
-  heroEyebrow: '46TH AUBL · HOSTED BY CHUNG-ANG UNIVERSITY (SEOUL)',
-  heroBadgeText: '전국대학아마추어야구연합회 · SINCE 1981',
-  heroTitle: '그라운드 위의 지성,\n멈추지 않는 열정.',
+  heroEyebrow: 'HOMESTEAL UNIVLEAGUE',
+  heroBadgeText: '2026 HOMESTEAL CUP · 대학야구교류전',
+  heroTitle: 'HOMESTEAL\nUNIVLEAGUE',
   heroDescription:
-    '2026 제46회 전국대학아마추어야구연합회(AUBL). 대한민국 유일의 순수 대학 아마추어 야구 리그에서\n40개 대학 2,000여 명의 선수가 써 내려가는 각본 없는 드라마가 지금 시작됩니다.',
-  heroSubDescription: '중앙대학교(서울)가 주최하는 2026 시즌 — 실시간 기록과 중계, 디지털화를 핵심 가치로 리그의 새로운 도약을 준비했습니다.',
+    '중앙대학교 통일공대 야구동아리 홈스틸(Homsteal)이 운영하는 Homsteal Univ League는 대학야구교류전 규정을 기준으로 진행되는 단일리그입니다.\n정규리그 종료 후 포스트시즌(준결승·결승/3-4위전)으로 시즌 최종 순위를 확정합니다.',
+  heroSubDescription: '운영 주체: 중앙대학교 통일공대 동아리 홈스틸 · 공식 소식: @homesteal_univleague',
   valueProps: [
     {
-      title: 'Pure Amateurism',
-      desc: '엘리트 선수 출신이 아닌 순수 일반 대학생만 참가. 승리보다 값진 땀방울을 지향합니다.',
-      icon: '🧢',
+      title: '단일리그',
+      desc: '팀당 6경기 풀리그로 정규시즌을 운영합니다.',
+      icon: '⚾',
     },
     {
-      title: 'National Scale',
-      desc: '1981년 창설 이후 45년, 수도권을 중심으로 40여 개 대학이 함께하는 국내 최대 대학 야구 리그입니다.',
-      icon: '🗺️',
+      title: '포스트시즌',
+      desc: '정규리그 1vs2, 3vs4 준결승 이후 결승과 3-4위전을 진행합니다.',
+      icon: '🏆',
     },
     {
-      title: 'Student Governance',
-      desc: '기획·운영·심판·기록까지 학생이 주도하는 자치 리그. 실시간 기록과 중계로 모두가 같은 정보를 공유합니다.',
-      icon: '🎓',
+      title: '규정 중심 운영',
+      desc: '7이닝·시간제한·콜드게임·몰수 0:7 등 규정 중심 운영을 준수합니다.',
+      icon: '📘',
     },
   ],
   snapshotCards: [
-    {
-      label: '2026 HOST',
-      value: '중앙대학교(서울)',
-      desc: '46주년 시즌 운영 전권을 맡은 호스트 대학',
-    },
-    {
-      label: 'FORMAT',
-      value: 'A~H조 8개 조 / 약 40팀',
-      desc: '조별 예선 후 으뜸·버금 이원화 토너먼트로 최강자를 가립니다.',
-    },
-    {
-      label: 'VISION',
-      value: '실시간 기록 · 중계 · 디지털화',
-      desc: '웹 플랫폼 기반 실시간 기록과 중계로 리그 소식을 즉시 전달하는 2026 시즌',
-    },
+    { label: 'LEAGUE FORMAT', value: '팀당 6경기', desc: '단일 풀리그 운영' },
+    { label: 'RANKING RULE', value: '승3 · 무1 · 패0', desc: '승점제 + 동률 규정 적용' },
+    { label: 'POSTSEASON', value: '준결승/결승', desc: '1vs2, 3vs4 이후 결승/3-4위전' },
   ],
   seasonHighlights: [
-    {
-      title: '리그 규정 (Rulebook)',
-      desc: '7이닝 경기, 5회 10점·6회 7점 콜드, 무단 불참 시 1년 출전 정지 등 최신 개정안을 반영했습니다.',
-      icon: '📘',
-      link: '/intro',
-    },
-    {
-      title: '기록실 (Stats)',
-      desc: '타율·방어율·홈런부터 TQB까지. 2026 시즌 최고의 팀과 선수를 데이터로 확인하세요.',
-      icon: '📊',
-      link: '/records',
-    },
-    {
-      title: '팀 소개 (Teams)',
-      desc: '중앙대, 연세대, 고려대, 한양대 등 40개 참가 팀의 프로필과 조 편성을 한눈에 모았습니다.',
-      icon: '🏅',
-      link: '/intro',
-    },
+    { title: '리그 규정', desc: '대학야구교류전 규정 전문과 핵심 요약을 확인하세요.', icon: '📄', link: '/rules' },
+    { title: '일정/결과', desc: '정규리그·포스트시즌 일정과 경기 결과를 확인할 수 있습니다.', icon: '🗓️', link: '/schedule' },
+    { title: '공식 채널', desc: '인스타그램(@homesteal_univleague)과 공지사항에서 운영 소식을 확인하세요.', icon: '📱', link: '/community' },
   ],
 };
 
 const DEFAULT_INTRO: IntroContent = {
-  tagline: 'AUBL · LEAGUE INTRO',
-  heroTitle: '순수 아마추어 대학 야구의 46년 — 2026년, 중앙대학교(서울)와 함께 새로운 도약을 준비합니다.',
-  heroSubtitle: '46th Amateur University Baseball League · Hosted by Chung-Ang University (Seoul)',
+  tagline: 'HOMESTEAL · INTRO',
+  heroTitle: '2026 HOMESTEAL UNIVLEAGUE 안내',
+  heroSubtitle: '대학야구교류전 단일리그',
   heroDescription:
-    '1981년 출범한 전국대학아마추어야구연합회(AUBL)는 엘리트 선수 중심이 아닌 일반 대학생들의 땀방울로 성장했습니다. 2026 시즌은 중앙대학교(서울)가 주최를 맡아 조별 예선과 으뜸·버금 토너먼트를 통해 리그의 전통과 혁신을 모두 보여줄 예정입니다.',
+    '중앙대학교 통일공대 야구동아리 홈스틸(Homsteal)이 주관하는 Homsteal Univ League는 대학야구교류전 규정 기반 단일리그입니다. 정규리그 성적을 바탕으로 포스트시즌 대진을 확정하고 시즌 최종 순위를 결정합니다.',
   historyHighlights: [
-    {
-      title: 'Since 1981',
-      desc: '1981년 대학생들의 작은 교류전으로 출발해 45년을 이어온 국내 유일 순수 대학 아마추어 야구 리그.',
-      accent: '#60a5fa',
-    },
-    {
-      title: 'Dynasties',
-      desc: '한국외국어대학교(서울)와 동국대학교(L.A.E)가 각각 통산 8회 우승으로 최다 우승 기록을 보유하며 리그의 역사를 이끌어왔습니다.',
-      accent: '#a855f7',
-    },
-    {
-      title: '2025 → 2026',
-      desc: '2025년 아주대 주최 시즌을 지나 2026년에는 중앙대학교(서울)가 호스트를 맡아 8개 조 예선과 으뜸·버금 토너먼트로 리그를 운영합니다.',
-      accent: '#34d399',
-    },
+    { title: '정규리그', desc: '팀당 6경기 풀리그 운영', accent: '#7a1221' },
+    { title: '포스트시즌', desc: '준결승(1vs2, 3vs4) 후 결승/3-4위전', accent: '#1e3a8a' },
+    { title: '순위 산정', desc: '승점제 + 동률 규정(몰수패→무승부→승자승→득실차)', accent: '#334155' },
   ],
   governance: [
-    {
-      label: '주최 (2026)',
-      value: '중앙대학교(서울)',
-      detail: '46주년 시즌 운영 전권을 위임받은 호스트 대학',
-    },
-    {
-      label: '회장단',
-      value: '회장 정흥영 · 기록부장 이주환',
-      detail: '실시간 기록 · 중계 · 디지털화, 웹 개발을 기록부가 주도',
-    },
-    {
-      label: '감사',
-      value: '연 2회 회계 감사',
-      detail: '주최 외 제3의 대학(차기 주최 등)이 상·하반기 2회 진행',
-    },
+    { label: '운영 주체', value: '중앙대학교 통일공대 동아리 Homsteal', detail: '홈스틸 운영진이 경기 일정·공지·대진을 관리합니다.' },
+    { label: '기록', value: '공식 기록원 운영', detail: '경기별 공식 기록을 작성하고 결과를 공유합니다.' },
+    { label: '공식 채널', value: 'Instagram @homesteal_univleague', detail: '모집 일정, 경기 공지, 결과 요약을 인스타그램 및 홈페이지로 안내합니다.' },
   ],
   structureCards: [
     {
-      title: '회원 자격',
-      points: ['각 대학 본부에 정식 등록된 야구회 소속원만 참가', '재학생 원칙, 휴학생·군 복무자 참가 허용', '대학원생은 원칙적으로 불허', '엘리트 선수(대한야구소프트볼협회 등록) 출신 제한으로 순수 아마추어리즘 유지'],
+      title: '리그 운영',
+      points: ['단일 풀리그 팀당 6경기', '정규리그 종료 후 상위 4팀 포스트시즌 진출', '경기 지연/미출전/몰수 규정 적용'],
     },
     {
-      title: '경기 운영',
-      points: ['정규 7이닝, 4이닝 이상 진행 시 정식 경기 인정', '콜드 게임: 5회 10점 차 / 6회 7점 차', '노쇼 10분 경과 시 몰수, 무단 불참 시 1년 출전 정지'],
+      title: '경기 규정',
+      points: ['7이닝 기준, 시간 제한 운영', '콜드게임: 3회15 / 4회10 / 5회8 / 6회7', '몰수경기 점수 0:7 적용'],
     },
     {
-      title: '순위 · 포스트시즌',
-      points: ['A~H조, 조당 4~5팀 풀리그', '순위: 승률 → 승자승 → TQB → 최소 실점 → 최다 득점 → 추첨', '각 조 상위 2팀 으뜸 토너먼트 16강, 하위권 팀은 버금 16강으로 진출'],
+      title: '포스트시즌',
+      points: ['준결승: 1위vs2위, 3위vs4위', '결승 및 3-4위전 진행', '플레이오프 무승부 시 리그 순위 우선'],
     },
   ],
   postseasonMatches: [
-    {
-      title: '으뜸 4강 (2026.01.25 예정)',
-      matchups: ['세종대 Kings vs 경희대 국제 Lions', '연세대 Eagles vs 서울시립대 Falcons'],
-    },
-    {
-      title: '버금 4강 (2026.01.24 예정)',
-      matchups: ['한국공학대 Winners vs 한국외대 글로벌 Union', '경희대 서울 Braves vs 인하대 Biryong'],
-    },
+    { title: '준결승', matchups: ['리그 1위 vs 2위', '리그 3위 vs 4위'] },
+    { title: '결승/3-4위전', matchups: ['준결승 승자 간 결승', '준결승 패자 간 3-4위전'] },
   ],
   heroMetrics: [
-    { label: '2026 HOST', value: '중앙대학교(서울)', note: '제46회 AUBL 운영' },
-    { label: '참가 규모', value: '약 40개 대학', note: 'A~H조 조별 예선 후 으뜸·버금' },
-    { label: '핵심 가치', value: '실시간 기록 · 중계 · 디지털화', note: '모바일 친화 기록/중계로 모두가 같은 정보를 공유' },
+    { label: 'LEAGUE TYPE', value: '단일리그', note: '팀당 6경기 풀리그' },
+    { label: 'POSTSEASON', value: '4팀 토너먼트', note: '준결승 + 결승/3-4위전' },
+    { label: 'RULE CORE', value: '승점·콜드·몰수', note: '규정 중심 경기 운영' },
   ],
 };
 
@@ -207,30 +176,90 @@ function cloneRuleChapters(chapters: RuleChapter[]): RuleChapter[] {
   }));
 }
 
+const PDF_RULE_CHAPTERS: RuleChapter[] = [
+  {
+    id: 'league-format',
+    title: '제1장 리그',
+    accent: '#d71f29',
+    articles: [
+      { title: '리그 편성', body: ['풀리그로 진행하며 팀당 6경기를 치른다.'] },
+      { title: '포스트시즌', body: ['준결승: 리그 1위vs2위, 3위vs4위', '결승: 준결승 승자', '3-4위전: 준결승 패자'] },
+    ],
+  },
+  {
+    id: 'game-management',
+    title: '제2장 경기',
+    accent: '#0f1464',
+    articles: [
+      { title: '경기 시간', body: ['경기는 7회 기준으로 운영한다.', '정규리그 시간 제한 적용, 결승/3-4위전은 별도 기준을 적용한다.'] },
+      { title: '콜드게임', body: ['3회 15점, 4회 10점, 5회 8점, 6회 7점 차에서 콜드게임을 선언한다.'] },
+      { title: '복장/장비', body: ['전 야수 포인트화 착용, 장비 미비 시 경기 출전이 제한될 수 있다.', '동호인 안전을 위해 나무 배트를 기본 사용한다.'] },
+      { title: '기록원', body: ['운영위원회 지정 기록원을 배정하며, 경기 종료 후 기록을 공유한다.'] },
+    ],
+  },
+  {
+    id: 'player-eligibility',
+    title: '제3장 선수',
+    accent: '#f97316',
+    articles: [
+      { title: '참가 자격', body: ['대학교/대학원 재적생만 참가 가능하다.', '선수 출신 규정은 문서 기준을 따른다.'] },
+      { title: '제재', body: ['부정선수·무자격선수는 몰수패 및 리그 제재 대상이다.'] },
+    ],
+  },
+  {
+    id: 'forfeit',
+    title: '제4장 몰수경기',
+    accent: '#991b1b',
+    articles: [
+      { title: '몰수 처리', body: ['경기 개시 10분 경과 시 9인 미충족이면 몰수 처리될 수 있다.', '몰수경기 점수는 0:7로 처리한다.'] },
+      { title: '반복 제재', body: ['2회 이상 몰수패 팀은 협회 판단에 따라 리그 퇴출될 수 있다.'] },
+    ],
+  },
+  {
+    id: 'results-awards',
+    title: '제6장 성적 및 시상',
+    accent: '#475569',
+    articles: [
+      { title: '팀 순위', body: ['승점제: 승 3점, 무 1점, 패 0점', '동률 시: 몰수패 없는 팀 → 무승부 많은 팀 → 승자승 → 득실차 순'] },
+      { title: '시상', body: ['팀 시상: 1~4위 트로피', '개인상 및 MVP 시상 규정은 문서 원문을 따른다.'] },
+    ],
+  },
+  {
+    id: 'etc',
+    title: '제7장 기타',
+    accent: '#334155',
+    articles: [
+      { title: '보험 및 안전', body: ['출전 선수는 보험 가입이 필수이며 경기 중 사고는 규정에 따라 처리한다.'] },
+      { title: '기록 문의', body: ['기록 수정 요청은 경기 종료 후 3일 이내에 제출한다.'] },
+    ],
+  },
+];
+
 const DEFAULT_RULES: RulesContent = {
-  headerBadge: 'AUBL · RULES',
-  headerTitle: '전국대학아마추어야구연합회 회칙',
+  headerBadge: 'HOMESTEAL · RULES',
+  headerTitle: '대학야구교류전 규정',
   headerDescription:
-    '1997년 추계 제정 · 2024년까지 연차별 개정. 모든 AUBL 공식 경기는 본 회칙에 따라 운영되며, 회칙에 규정되지 않은 사항은 KBO 규정집을 적용합니다.',
-  chapters: cloneRuleChapters(DEFAULT_RULE_CHAPTERS as RuleChapter[]),
+    '공식 규정 PDF를 기준으로 리그 운영, 경기 진행, 선수 자격, 몰수 규정, 성적·시상 기준을 적용합니다.',
+  chapters: cloneRuleChapters(PDF_RULE_CHAPTERS),
   hostOrder: [...DEFAULT_RULE_HOST_ORDER],
-  appendixText:
-    '본 회칙은 1997년 추계에 제정되었으며, 이후 대표자회의 의결을 거쳐 2024년까지 연차별로 개정되었다. 회칙에 규정되지 않은 사항은 KBO 규정집을 적용한다.',
+  appendixText: '상세 조항 및 예외 규정은 공식 PDF 원문을 우선 적용합니다.',
 };
 
 const DEFAULT_TEAMS: TeamsContent = {
-  pageBadge: 'AUBL · TEAMS',
-  pageTitle: '2026 참가팀 · 조편성',
-  pageDescription: '총 40개 대학이 A~H조 조별 리그에 참가합니다. 조별 상위 2팀은 으뜸 토너먼트 16강, 3·4등은 버금 토너먼트 16강으로 포스트시즌이 진행됩니다.',
-  pageNote: '조편성은 대표자회의 의결에 따라 확정되며, 변경될 수 있습니다. 최종 조편성은 시즌 개막 전 공지됩니다.',
-  entries: TEAM_GROUPS,
+  pageBadge: 'HOMESTEAL · TEAMS',
+  pageTitle: '2026 시즌 참가팀',
+  pageDescription: '홈스틸 유니브리그 참가팀은 시즌 공지를 통해 확정되며, 단일리그 운영 후 상위 4팀이 포스트시즌에 진출합니다.',
+  pageNote: '참가팀 명단은 리그 공지 및 대표자 회의 결과에 따라 업데이트됩니다.',
+  entries: [],
 };
 
 const defaultContent: ContentState = {
+  brand: DEFAULT_BRAND,
   tickerItems: [
-    '📢 [공지] 1월 25일 으뜸 토너먼트 4강전: 세종대 vs 경희대국제 / 연세대 vs 서울시립대 경기 예정',
-    '🏆 [2024 결과] 으뜸 우승: 홍익대 / 버금 우승: 동국대 LAE',
-    '⚾ [현재 시즌] 2025 AUBL 토너먼트 진행 중 (주최: 아주대학교)',
+    '📢 [공지] 2026 시즌 단일리그 운영 (팀당 6경기)',
+    '🏆 [포스트시즌] 준결승(1vs2, 3vs4) → 결승/3-4위전',
+    '📘 [규정] 승점제(승3/무1/패0), 몰수경기 0:7 적용',
+    '📱 [공식채널] Instagram @homesteal_univleague',
   ],
   landing: DEFAULT_LANDING,
   intro: DEFAULT_INTRO,
@@ -244,18 +273,20 @@ type ContentContextValue = {
   resetContent: () => void;
 };
 
-const LEGACY_STORAGE_KEY = 'aubl:content:v1';
-const LIVE_STORAGE_KEY = 'aubl:content:live:v1';
-const STATIC_STORAGE_KEY = 'aubl:content:static:v2';
+const LEGACY_STORAGE_KEY = 'homesteal:content:v2';
+const LIVE_STORAGE_KEY = 'homesteal:content:live:v2';
+const STATIC_STORAGE_KEY = 'homesteal:content:static:v2';
 
-const LEGACY_DOC = 'settings/content';
-const LIVE_DOC = 'settings/liveInfo';
-const STATIC_DOC = 'settings/staticContent';
-const META_DOC = 'settings/contentMeta';
+const LEGACY_CONTENT_PATTERN =
+  /AUBL|으뜸|버금|조편성|조별|승부예측|예선|본선|파워랭킹|Power Ranking|Bradley|Elo|BT Index|연합회|중앙대학교\\(서울\\)|중앙대학교 서울/i;
+const HOMESTEAL_IDENTITY_PATTERN = /HOMESTEAL|홈스틸|UNIVLEAGUE|유니브리그/i;
 
-const STATIC_KEYS: (keyof Omit<ContentState, 'tickerItems'>)[] = ['landing', 'intro', 'rules', 'teams'];
+const LEGACY_DOC = 'settings/homestealContent';
+const LIVE_DOC = 'settings/homestealLiveInfo';
+const STATIC_DOC = 'settings/homestealStaticContent';
+const META_DOC = 'settings/homestealContentMeta';
 
-const VALID_GROUPS: GroupLetter[] = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+const STATIC_KEYS: (keyof Omit<ContentState, 'tickerItems'>)[] = ['brand', 'landing', 'intro', 'rules', 'teams'];
 
 const ContentContext = createContext<ContentContextValue>({
   content: defaultContent,
@@ -267,6 +298,7 @@ function deepMerge(base: ContentState, patch: Partial<ContentState>): ContentSta
   return {
     ...base,
     ...patch,
+    brand: patch.brand ? { ...base.brand, ...patch.brand } : base.brand,
     landing: patch.landing ? { ...base.landing, ...patch.landing } : base.landing,
     intro: patch.intro ? { ...base.intro, ...patch.intro } : base.intro,
     rules: patch.rules ? { ...base.rules, ...patch.rules } : base.rules,
@@ -312,11 +344,98 @@ function normalizeTeamsEntries(value: unknown, fallback: TeamContentEntry[]): Te
   for (const item of value) {
     if (!item || typeof item !== 'object') continue;
     const name = typeof (item as { name?: unknown }).name === 'string' ? (item as { name: string }).name.trim() : '';
-    const group = (item as { group?: unknown }).group;
-    if (!name || typeof group !== 'string' || !VALID_GROUPS.includes(group as GroupLetter)) continue;
-    next.push({ name, group: group as GroupLetter });
+    if (!name) continue;
+    next.push({ name });
   }
   return next.length ? next : fallback;
+}
+
+function hasLegacyTerm(value: string) {
+  return LEGACY_CONTENT_PATTERN.test(value);
+}
+
+function hasHomstealIdentity(value: string) {
+  return HOMESTEAL_IDENTITY_PATTERN.test(value);
+}
+
+function hasLegacyTermInList(values: string[]) {
+  return values.some((value) => hasLegacyTerm(value));
+}
+
+function flattenRuleText(rules: RulesContent) {
+  const chapterText = rules.chapters.flatMap((chapter) => [
+    chapter.id,
+    chapter.title,
+    ...chapter.articles.flatMap((article) => [article.title, ...article.body]),
+  ]);
+  return [rules.headerBadge, rules.headerTitle, rules.headerDescription, rules.appendixText, ...chapterText];
+}
+
+function isLegacyLandingContent(landing: LandingContent) {
+  const values = [
+    landing.heroEyebrow,
+    landing.heroBadgeText,
+    landing.heroTitle,
+    landing.heroDescription,
+    landing.heroSubDescription,
+    ...landing.valueProps.flatMap((item) => [item.title, item.desc]),
+    ...landing.snapshotCards.flatMap((item) => [item.label, item.value, item.desc]),
+    ...landing.seasonHighlights.flatMap((item) => [item.title, item.desc]),
+  ];
+  const identityText = `${landing.heroBadgeText} ${landing.heroTitle} ${landing.heroDescription}`;
+  return hasLegacyTermInList(values) || !hasHomstealIdentity(identityText);
+}
+
+function isLegacyIntroContent(intro: IntroContent) {
+  const values = [
+    intro.tagline,
+    intro.heroTitle,
+    intro.heroSubtitle,
+    intro.heroDescription,
+    ...intro.historyHighlights.flatMap((item) => [item.title, item.desc]),
+    ...intro.governance.flatMap((item) => [item.label, item.value, item.detail]),
+    ...intro.structureCards.flatMap((item) => [item.title, ...item.points]),
+    ...intro.postseasonMatches.flatMap((item) => [item.title, ...item.matchups]),
+    ...intro.heroMetrics.flatMap((item) => [item.label, item.value, item.note]),
+  ];
+  const identityText = `${intro.tagline} ${intro.heroTitle} ${intro.heroDescription}`;
+  return hasLegacyTermInList(values) || !hasHomstealIdentity(identityText);
+}
+
+function isLegacyRulesContent(rules: RulesContent) {
+  const identityText = `${rules.headerBadge} ${rules.headerTitle} ${rules.headerDescription}`;
+  return hasLegacyTermInList(flattenRuleText(rules)) || !(hasHomstealIdentity(identityText) || identityText.includes('교류전'));
+}
+
+function isLegacyTeamsContent(teams: TeamsContent) {
+  const values = [teams.pageBadge, teams.pageTitle, teams.pageDescription, teams.pageNote, ...teams.entries.map((entry) => entry.name)];
+  const identityText = `${teams.pageBadge} ${teams.pageTitle} ${teams.pageDescription}`;
+  return hasLegacyTermInList(values) || !hasHomstealIdentity(identityText);
+}
+
+function normalizeBrand(value: unknown, fallback: BrandContent): BrandContent {
+  if (!value || typeof value !== 'object') return fallback;
+  const next = value as Partial<BrandContent>;
+  const normalized: BrandContent = {
+    leagueName: typeof next.leagueName === 'string' && next.leagueName.trim() ? next.leagueName.trim() : fallback.leagueName,
+    seasonLabel: typeof next.seasonLabel === 'string' && next.seasonLabel.trim() ? next.seasonLabel.trim() : fallback.seasonLabel,
+    leagueDescription:
+      typeof next.leagueDescription === 'string' && next.leagueDescription.trim()
+        ? next.leagueDescription.trim()
+        : fallback.leagueDescription,
+    instagramUrl: typeof next.instagramUrl === 'string' && next.instagramUrl.trim() ? next.instagramUrl.trim() : fallback.instagramUrl,
+    rulesPdfPath: typeof next.rulesPdfPath === 'string' && next.rulesPdfPath.trim() ? next.rulesPdfPath.trim() : fallback.rulesPdfPath,
+    teamLogoPath: typeof next.teamLogoPath === 'string' && next.teamLogoPath.trim() ? next.teamLogoPath.trim() : fallback.teamLogoPath,
+    leagueLogoPath:
+      typeof next.leagueLogoPath === 'string' && next.leagueLogoPath.trim() ? next.leagueLogoPath.trim() : fallback.leagueLogoPath,
+    accentRed: typeof next.accentRed === 'string' && next.accentRed.trim() ? next.accentRed.trim() : fallback.accentRed,
+    accentNavy: typeof next.accentNavy === 'string' && next.accentNavy.trim() ? next.accentNavy.trim() : fallback.accentNavy,
+    accentLight: typeof next.accentLight === 'string' && next.accentLight.trim() ? next.accentLight.trim() : fallback.accentLight,
+  };
+
+  const identityText = `${normalized.leagueName} ${normalized.seasonLabel} ${normalized.leagueDescription}`;
+  if (hasLegacyTerm(identityText) || !hasHomstealIdentity(identityText)) return fallback;
+  return normalized;
 }
 
 function normalizeRuleChapters(value: unknown, fallback: RuleChapter[]): RuleChapter[] {
@@ -368,19 +487,28 @@ function normalizeRuleChapters(value: unknown, fallback: RuleChapter[]): RuleCha
     };
   });
 
-  const extraChapters = chapters.filter((chapter) => !fallback.some((def) => def.id === chapter.id));
+  const extraChapters = chapters.filter((chapter) => {
+    if (fallback.some((def) => def.id === chapter.id)) return false;
+    const chapterText = [chapter.id, chapter.title, ...chapter.articles.flatMap((article) => [article.title, ...article.body])];
+    return !hasLegacyTermInList(chapterText);
+  });
   return [...mergedWithDefaults, ...extraChapters];
 }
 
 function normalizeContentPatch(input: Partial<ContentState>): Partial<ContentState> {
   const patch: Partial<ContentState> = {};
 
+  if (hasField(input, 'brand')) {
+    patch.brand = normalizeBrand((input as { brand?: unknown }).brand, defaultContent.brand);
+  }
+
   if (hasField(input, 'tickerItems')) {
-    patch.tickerItems = normalizeTicker((input as { tickerItems?: unknown }).tickerItems, defaultContent.tickerItems);
+    const nextTicker = normalizeTicker((input as { tickerItems?: unknown }).tickerItems, defaultContent.tickerItems);
+    patch.tickerItems = hasLegacyTermInList(nextTicker) ? defaultContent.tickerItems : nextTicker;
   }
 
   if (input.landing) {
-    patch.landing = {
+    const nextLanding: LandingContent = {
       ...input.landing,
       valueProps: Array.isArray(input.landing.valueProps)
         ? input.landing.valueProps.filter((item) => item?.title && item?.desc)
@@ -392,10 +520,11 @@ function normalizeContentPatch(input: Partial<ContentState>): Partial<ContentSta
         ? input.landing.seasonHighlights.filter((item) => item?.title && item?.desc && item?.link)
         : defaultContent.landing.seasonHighlights,
     };
+    patch.landing = isLegacyLandingContent(nextLanding) ? defaultContent.landing : nextLanding;
   }
 
   if (input.intro) {
-    patch.intro = {
+    const nextIntro: IntroContent = {
       ...input.intro,
       historyHighlights: Array.isArray(input.intro.historyHighlights) ? input.intro.historyHighlights : defaultContent.intro.historyHighlights,
       governance: Array.isArray(input.intro.governance) ? input.intro.governance : defaultContent.intro.governance,
@@ -403,23 +532,26 @@ function normalizeContentPatch(input: Partial<ContentState>): Partial<ContentSta
       postseasonMatches: Array.isArray(input.intro.postseasonMatches) ? input.intro.postseasonMatches : defaultContent.intro.postseasonMatches,
       heroMetrics: Array.isArray(input.intro.heroMetrics) ? input.intro.heroMetrics : defaultContent.intro.heroMetrics,
     };
+    patch.intro = isLegacyIntroContent(nextIntro) ? defaultContent.intro : nextIntro;
   }
 
   if (input.rules) {
-    patch.rules = {
+    const nextRules: RulesContent = {
       ...input.rules,
       chapters: normalizeRuleChapters(input.rules.chapters, defaultContent.rules.chapters),
       hostOrder: Array.isArray(input.rules.hostOrder)
         ? input.rules.hostOrder.filter((name): name is string => typeof name === 'string' && name.trim().length > 0).map((name) => name.trim())
         : defaultContent.rules.hostOrder,
     };
+    patch.rules = isLegacyRulesContent(nextRules) ? defaultContent.rules : nextRules;
   }
 
   if (input.teams) {
-    patch.teams = {
+    const nextTeams: TeamsContent = {
       ...input.teams,
       entries: normalizeTeamsEntries(input.teams.entries, defaultContent.teams.entries),
     };
+    patch.teams = isLegacyTeamsContent(nextTeams) ? defaultContent.teams : nextTeams;
   }
 
   return patch;
@@ -432,6 +564,7 @@ function areSameStrings(a: string[], b: string[]) {
 
 function staticPayload(content: ContentState): Omit<ContentState, 'tickerItems'> {
   return {
+    brand: content.brand,
     landing: content.landing,
     intro: content.intro,
     rules: content.rules,
@@ -465,11 +598,13 @@ export function ContentProvider({ children }: { children: ReactNode }) {
 
     const patch: Partial<ContentState> = {};
     if (cachedStatic) {
+      patch.brand = cachedStatic.brand;
       patch.landing = cachedStatic.landing;
       patch.intro = cachedStatic.intro;
       patch.rules = cachedStatic.rules;
       patch.teams = cachedStatic.teams;
     } else if (cachedLegacy) {
+      patch.brand = cachedLegacy.brand;
       patch.landing = cachedLegacy.landing;
       patch.intro = cachedLegacy.intro;
       patch.rules = cachedLegacy.rules;
@@ -491,6 +626,7 @@ export function ContentProvider({ children }: { children: ReactNode }) {
       if (staticSnapshot.exists()) {
         const data = staticSnapshot.data() as Partial<ContentState>;
         const patch = normalizeContentPatch({
+          brand: data.brand,
           landing: data.landing,
           intro: data.intro,
           rules: data.rules,

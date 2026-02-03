@@ -61,7 +61,7 @@ export default function LoginPage() {
   return (
     <div className="auth-shell">
       <div className="auth-hero">
-        <p className="eyebrow">AUBL 계정</p>
+        <p className="eyebrow">Homsteal 계정</p>
         <h1>로그인하고 경기 소식을 가장 빠르게 만나보세요</h1>
         <p className="lede">
           이메일·비밀번호(재확인) 또는 Google 계정으로 간편 로그인하세요.

@@ -59,6 +59,63 @@ service cloud.firestore {
       }
     }
 
+    // 자유게시판
+    match /communityPosts/{postId} {
+      allow read: if true;
+      allow create: if request.auth != null
+        && request.resource.data.authorUid == request.auth.uid
+        && request.resource.data.keys().hasOnly(['title', 'content', 'authorUid', 'authorName', 'createdAt', 'updatedAt'])
+        && request.resource.data.title is string
+        && request.resource.data.content is string
+        && request.resource.data.authorName is string
+        && request.resource.data.createdAt is int
+        && request.resource.data.updatedAt is int;
+
+      allow update: if request.auth != null
+        && (
+          isAdmin()
+          || request.auth.uid == resource.data.authorUid
+        )
+        && request.resource.data.authorUid == resource.data.authorUid
+        && request.resource.data.authorName == resource.data.authorName
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.title is string
+        && request.resource.data.content is string
+        && request.resource.data.updatedAt is int;
+
+      allow delete: if request.auth != null
+        && (
+          isAdmin()
+          || request.auth.uid == resource.data.authorUid
+        );
+
+      match /comments/{commentId} {
+        allow read: if true;
+        allow create: if request.auth != null
+          && request.resource.data.authorUid == request.auth.uid
+          && request.resource.data.keys().hasOnly(['content', 'authorUid', 'authorName', 'createdAt'])
+          && request.resource.data.content is string
+          && request.resource.data.authorName is string
+          && request.resource.data.createdAt is int;
+
+        allow update: if request.auth != null
+          && (
+            isAdmin()
+            || request.auth.uid == resource.data.authorUid
+          )
+          && request.resource.data.authorUid == resource.data.authorUid
+          && request.resource.data.authorName == resource.data.authorName
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.content is string;
+
+        allow delete: if request.auth != null
+          && (
+            isAdmin()
+            || request.auth.uid == resource.data.authorUid
+          );
+      }
+    }
+
     // 실시간 경기 상태 (스코어보드/문자중계)
     match /matchStates/{matchId} {
       allow read: if true;
@@ -86,9 +143,17 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isAdmin();
     }
+    match /settings/homestealContent {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
 
     // LIVE INFO (실시간)
     match /settings/liveInfo {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /settings/homestealLiveInfo {
       allow read: if true;
       allow write: if isAdmin();
     }
@@ -98,7 +163,15 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isAdmin();
     }
+    match /settings/homestealStaticContent {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
     match /settings/contentMeta {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /settings/homestealContentMeta {
       allow read: if true;
       allow write: if isAdmin();
     }

@@ -155,6 +155,7 @@ export type PostGameRecord = {
 
 export type MatchStatus = 'scheduled' | 'inProgress' | 'completed' | 'canceled';
 export type MatchRecordMode = 'official' | 'practice';
+export type MatchPhase = 'REGULAR' | 'POSTSEASON' | 'PRACTICE';
 
 export interface MatchSchedule {
   id: string;
@@ -166,9 +167,11 @@ export interface MatchSchedule {
   venue: string;
   status: MatchStatus;
   recordMode?: MatchRecordMode;
+  phase?: MatchPhase;
   liveVideoUrl?: string;
   liveDelaySeconds?: number;
   division?: LeagueDivision; // 으뜸/버금 구분 (관리자 지정)
+  isForfeit?: boolean;
   homeScore?: number | null;
   awayScore?: number | null;
   lineups?: { home: PlayerSlot[]; away: PlayerSlot[] };
@@ -495,6 +498,14 @@ const deriveMatchDivision = (
   if (homeDiv && !awayDiv) return homeDiv;
   if (awayDiv && !homeDiv) return awayDiv;
   return undefined;
+};
+
+const deriveMatchPhase = (phase: unknown, recordMode: unknown): MatchPhase => {
+  const normalized = typeof phase === 'string' ? phase.trim().toUpperCase() : '';
+  if (normalized === 'REGULAR' || normalized === 'POSTSEASON' || normalized === 'PRACTICE') {
+    return normalized;
+  }
+  return recordMode === 'practice' ? 'PRACTICE' : 'REGULAR';
 };
 
 function isPracticeMatch(match?: MatchSchedule | null) {
@@ -893,11 +904,16 @@ function normalizeMatches(matches: unknown): MatchSchedule[] {
       awayTeamName: typeof match.awayTeamName === 'string' ? match.awayTeamName : '미정',
       startTime: typeof match.startTime === 'string' ? match.startTime : new Date().toISOString(),
       venue: typeof match.venue === 'string' ? match.venue : '미정',
-      status: match.status === 'completed' || match.status === 'inProgress' ? match.status : 'scheduled',
+      status:
+        match.status === 'completed' || match.status === 'inProgress' || match.status === 'canceled'
+          ? match.status
+          : 'scheduled',
       recordMode: match.recordMode === 'practice' ? 'practice' : 'official',
+      phase: deriveMatchPhase(match.phase, match.recordMode),
       liveVideoUrl: typeof match.liveVideoUrl === 'string' ? match.liveVideoUrl : undefined,
       liveDelaySeconds: typeof match.liveDelaySeconds === 'number' ? match.liveDelaySeconds : undefined,
       division: deriveMatchDivision(match.division, match.homeTeamId, match.awayTeamId),
+      isForfeit: match.isForfeit === true,
       homeScore: typeof match.homeScore === 'number' ? match.homeScore : null,
       awayScore: typeof match.awayScore === 'number' ? match.awayScore : null,
       lineups: normalizeLineups(match.lineups),
@@ -923,9 +939,11 @@ function projectSpectatorMatch(match: MatchSchedule): MatchSchedule {
     venue: match.venue,
     status: match.status,
     recordMode: match.recordMode ?? 'official',
+    phase: match.phase ?? (match.recordMode === 'practice' ? 'PRACTICE' : 'REGULAR'),
     liveVideoUrl: match.liveVideoUrl,
     liveDelaySeconds: match.liveDelaySeconds,
     division: match.division,
+    isForfeit: match.isForfeit,
     homeScore: match.homeScore,
     awayScore: match.awayScore,
     deleted: match.deleted,
@@ -3553,7 +3571,8 @@ export function DemoStoreProvider({ children }: { children: React.ReactNode }) {
   const heartbeatTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const presenceTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const visitorIdRef = useRef<string | null>(null);
-  const STORAGE_KEY = 'aubl-demo-state';
+  const STORAGE_KEY = 'homesteal-demo-state';
+  const LEGACY_STORAGE_KEY = 'aubl-demo-state';
 
   useEffect(() => {
     stateRef.current = state;
@@ -3637,6 +3656,7 @@ export function DemoStoreProvider({ children }: { children: React.ReactNode }) {
     // 이렇게 하면 새로고침 시 항상 깨끗한 상태(initialState)로 시작하여 
     // 아래의 onSnapshot 구독들이 파이어베이스의 최신 데이터를 채워넣게 됩니다.
     window.localStorage.removeItem(STORAGE_KEY);
+    window.localStorage.removeItem(LEGACY_STORAGE_KEY);
 
     /* 기존 불러오기 로직은 주석 처리 또는 삭제
     try {
@@ -3657,7 +3677,7 @@ export function DemoStoreProvider({ children }: { children: React.ReactNode }) {
       // ignore corrupt cache
     }
     */
-  }, []);
+  }, [LEGACY_STORAGE_KEY, STORAGE_KEY]);
 
   // Determine admin (for schedule write privileges & full subscription)
   useEffect(() => {
@@ -4043,8 +4063,17 @@ export function DemoStoreProvider({ children }: { children: React.ReactNode }) {
         visitorIdRef.current = user.uid;
         return user.uid;
       }
-      const storageKey = 'aubl-visitor-id';
+      const storageKey = 'homesteal-visitor-id';
+      const legacyStorageKey = 'aubl-visitor-id';
       let vid = sessionStorage.getItem(storageKey);
+      if (!vid) {
+        const legacyId = sessionStorage.getItem(legacyStorageKey);
+        if (legacyId) {
+          vid = legacyId;
+          sessionStorage.setItem(storageKey, legacyId);
+          sessionStorage.removeItem(legacyStorageKey);
+        }
+      }
       if (!vid) {
         vid = `anon_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
         sessionStorage.setItem(storageKey, vid);
@@ -4229,7 +4258,9 @@ export function DemoStoreProvider({ children }: { children: React.ReactNode }) {
         status: m.status,
         startTime: m.startTime,
         notes: m.notes ?? null,
+        phase: m.phase ?? null,
         division: m.division ?? null,
+        isForfeit: m.isForfeit ?? false,
         venue: m.venue,
         recordMode: m.recordMode ?? 'official',
         homeTeamName: m.homeTeamName,

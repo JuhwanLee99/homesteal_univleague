@@ -1,7 +1,7 @@
 import type React from 'react';
 import { useMemo, useState } from 'react';
 import { useDemoStore } from '../../shared/state/demoStore';
-import type { MatchStatus, MatchSchedule, PlayerSlot } from '../../shared/state/demoStore';
+import type { MatchStatus, MatchSchedule, MatchPhase, PlayerSlot } from '../../shared/state/demoStore';
 import type { LeagueDivision } from '../../shared/types';
 import { TEAMS } from '../../shared/lib/mockData';
 
@@ -112,9 +112,10 @@ export default function ScheduleManagePage() {
       awayTeamId: away.id,
       homeTeamName: home.name,
       awayTeamName: away.name,
+      phase: 'REGULAR',
       division: home.division === away.division ? home.division : undefined,
       startTime: start.toISOString(),
-      venue: 'AUBL 임시구장',
+      venue: 'HOMESTEAL 임시구장',
       status: 'scheduled',
       notes: '빠른 더미 등록',
       // 더미 라인업 추가
@@ -255,6 +256,20 @@ export default function ScheduleManagePage() {
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'center' }}>
+                    <select
+                      value={match.phase ?? ((match.recordMode ?? 'official') === 'practice' ? 'PRACTICE' : 'REGULAR')}
+                      onChange={(e) => actions.updateMatch(match.id, { phase: e.target.value as MatchPhase })}
+                      style={{
+                        ...inputStyle,
+                        width: '130px',
+                        padding: '8px 10px',
+                        background: 'rgba(255,255,255,0.06)',
+                      }}
+                    >
+                      <option value="REGULAR">단계: 정규리그</option>
+                      <option value="POSTSEASON">단계: 포스트시즌</option>
+                      <option value="PRACTICE">단계: 연습경기</option>
+                    </select>
                     <select
                       value={match.division ?? 'auto'}
                       onChange={(e) =>

@@ -135,7 +135,7 @@ export default function PowerRankingPage() {
               fontSize: '12px',
             }}
           >
-            AUBL POWER RANKING
+            HOMESTEAL POWER RANKING
           </span>
           <span
             style={{

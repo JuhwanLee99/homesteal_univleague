@@ -152,9 +152,9 @@ function MiniBases({ bases }: { bases?: (string | null | undefined)[] }) {
     height: 10,
     borderRadius: '2px',
     transform: position.transform ?? 'rotate(45deg)',
-    background: active ? 'linear-gradient(135deg, #fcd34d, #f59e0b)' : 'rgba(148,163,184,0.12)',
+    background: active ? 'linear-gradient(135deg, #93c5fd, #1d4ed8)' : 'rgba(148,163,184,0.12)',
     border: '1px solid rgba(226, 232, 240, 0.55)',
-    boxShadow: active ? '0 0 0 4px rgba(252, 211, 77, 0.18)' : 'none',
+    boxShadow: active ? '0 0 0 4px rgba(59, 130, 246, 0.2)' : 'none',
     transition: 'all 0.18s ease',
     ...position,
   });
@@ -186,6 +186,7 @@ function MiniBases({ bases }: { bases?: (string | null | undefined)[] }) {
 export default function LandingPage() {
   const { state, actions } = useDemoStore();
   const { content } = useContent();
+  const brand = content.brand;
   const landing = content.landing;
   const navigate = useNavigate();
   const heroRef = useRef<HTMLDivElement>(null);
@@ -389,16 +390,18 @@ export default function LandingPage() {
           borderRadius: 'var(--hero-radius)',
           padding: 'var(--hero-padding)',
           background:
-            'radial-gradient(circle at 18% 22%, rgba(59,130,246,0.24), transparent 32%), radial-gradient(circle at 90% 0%, rgba(12,74,110,0.18), transparent 30%), linear-gradient(140deg, #0b1f46 0%, #0d2f7f 100%)',
+            'radial-gradient(circle at 22% 22%, rgba(215,31,41,0.26), transparent 34%), radial-gradient(circle at 78% 8%, rgba(229,231,235,0.18), transparent 30%), linear-gradient(140deg, var(--hs-navy) 0%, var(--hs-ink) 100%)',
           boxShadow: '0 24px 60px rgba(6, 15, 40, 0.55)',
           isolation: 'isolate',
         }}
       >
         <div style={{ position: 'relative', zIndex: 1, display: 'grid', gap: '28px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <img src={brand.teamLogoPath} alt="Homsteal Team Logo" style={{ width: 46, height: 46, borderRadius: '12px', objectFit: 'cover', border: '1px solid rgba(229,231,235,0.35)' }} />
+            <img src={brand.leagueLogoPath} alt="Homsteal Univleague Logo" style={{ width: 46, height: 46, borderRadius: '12px', objectFit: 'cover', border: '1px solid rgba(229,231,235,0.35)' }} />
             <span
               className="hero-animate"
-              style={{ fontSize: 'clamp(11px, 2.8vw, 13px)', fontWeight: 800, letterSpacing: '0.08em', color: '#60a5fa' }}
+              style={{ fontSize: 'clamp(11px, 2.8vw, 13px)', fontWeight: 800, letterSpacing: '0.08em', color: '#fca5a5' }}
             >
               {landing.heroEyebrow}
             </span>
@@ -407,10 +410,10 @@ export default function LandingPage() {
               style={{
                 padding: '6px 12px',
                 borderRadius: '999px',
-                background: 'rgba(255, 255, 255, 0.08)',
-                color: '#e2e8f0',
+                background: 'rgba(215, 31, 41, 0.22)',
+                color: '#ffe4e6',
                 fontSize: 'clamp(11px, 2.6vw, 12px)',
-                border: '1px solid rgba(148, 163, 184, 0.28)',
+                border: '1px solid rgba(248, 113, 113, 0.5)',
               }}
             >
               {landing.heroBadgeText}
@@ -429,6 +432,9 @@ export default function LandingPage() {
             <p className="hero-animate" style={{ color: '#93c5fd', fontWeight: 700, margin: 0, fontSize: 'clamp(13px, 3.4vw, 16px)' }}>
               {landing.heroSubDescription}
             </p>
+            <p className="hero-animate" style={{ margin: 0, color: '#dbeafe', fontWeight: 700, fontSize: 'clamp(12px, 3.2vw, 14px)' }}>
+              중앙대학교 통일공대 야구동아리 홈스틸(Homsteal) 운영 · 대학야구교류전 규정 기반
+            </p>
           </div>
           <div className="hero-animate" style={{ display: 'flex', gap: '14px', flexWrap: 'wrap', marginTop: '4px' }}>
             <Link
@@ -443,7 +449,7 @@ export default function LandingPage() {
                 boxShadow: '0 16px 40px rgba(96, 165, 250, 0.28)',
               }}
             >
-              2026 경기 일정 확인하기
+              정규리그/포스트시즌 일정 보기
             </Link>
             <Link
               to="/intro"
@@ -457,11 +463,11 @@ export default function LandingPage() {
                 border: '1px solid rgba(148, 163, 184, 0.32)',
               }}
             >
-              참가 팀 및 조 편성 보기
+              리그 소개 및 참가팀 보기
             </Link>
             <a
               className="hero-animate"
-              href="https://www.instagram.com/aubl_1981/"
+              href={brand.instagramUrl}
               target="_blank"
               rel="noreferrer"
               style={{
@@ -469,12 +475,29 @@ export default function LandingPage() {
                 borderRadius: '12px',
                 fontWeight: 800,
                 fontSize: '15px',
-                backgroundColor: 'rgba(99, 102, 241, 0.18)',
-                color: '#dbeafe',
-                border: '1px solid rgba(99, 102, 241, 0.36)',
+                backgroundColor: 'rgba(215, 31, 41, 0.2)',
+                color: '#ffe4e6',
+                border: '1px solid rgba(248, 113, 113, 0.4)',
               }}
             >
               인스타그램 팔로우
+            </a>
+            <a
+              className="hero-animate"
+              href={brand.rulesPdfPath}
+              target="_blank"
+              rel="noreferrer"
+              style={{
+                padding: '14px 18px',
+                borderRadius: '12px',
+                fontWeight: 800,
+                fontSize: '15px',
+                backgroundColor: 'rgba(2, 6, 23, 0.55)',
+                color: '#e2e8f0',
+                border: '1px solid rgba(148, 163, 184, 0.4)',
+              }}
+            >
+              대학야구교류전 규정 PDF
             </a>
           </div>
         </div>
@@ -483,11 +506,9 @@ export default function LandingPage() {
           style={{
             position: 'absolute',
             inset: 0,
-            background: "url('/assets/aubl_clean.png')",
-            backgroundSize: 'contain',
-            backgroundPosition: 'center',
-            backgroundRepeat: 'no-repeat',
-            opacity: 0.32,
+            background:
+              'radial-gradient(circle at 20% 20%, rgba(215,31,41,0.28), transparent 24%), radial-gradient(circle at 80% 70%, rgba(229,231,235,0.12), transparent 20%)',
+            opacity: 0.9,
             pointerEvents: 'none',
           }}
         />
@@ -708,8 +729,8 @@ export default function LandingPage() {
                         width: '8px',
                         height: '8px',
                         borderRadius: '999px',
-                        backgroundColor: '#f97316',
-                        boxShadow: '0 0 0 6px rgba(249, 115, 22, 0.12)',
+                        backgroundColor: 'var(--hs-red)',
+                        boxShadow: '0 0 0 6px rgba(122, 18, 33, 0.22)',
                         flexShrink: 0,
                       }}
                     />
@@ -858,8 +879,8 @@ export default function LandingPage() {
               width: '10px',
               height: '10px',
               borderRadius: '999px',
-              backgroundColor: '#a855f7',
-              boxShadow: '0 0 0 6px rgba(168, 85, 247, 0.15)',
+              backgroundColor: '#1e3a8a',
+              boxShadow: '0 0 0 6px rgba(30, 58, 138, 0.2)',
             }}
           />
           오늘 예정 경기
@@ -874,8 +895,8 @@ export default function LandingPage() {
                   minWidth: '240px',
                   padding: '10px 12px',
                   borderRadius: '12px',
-                  border: '1px solid rgba(168, 85, 247, 0.28)',
-                  background: 'linear-gradient(135deg, rgba(168,85,247,0.12), rgba(99,102,241,0.08))',
+                  border: '1px solid rgba(59, 130, 246, 0.28)',
+                  background: 'linear-gradient(135deg, rgba(30,58,138,0.2), rgba(30,41,59,0.22))',
                   color: '#e2e8f0',
                   display: 'grid',
                   gap: '6px',
@@ -883,7 +904,7 @@ export default function LandingPage() {
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', alignItems: 'center' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                    <span style={{ fontWeight: 900, fontSize: '13px', color: '#ede9fe' }}>{formatTimeShort(match.startTime)}</span>
+                    <span style={{ fontWeight: 900, fontSize: '13px', color: '#dbeafe' }}>{formatTimeShort(match.startTime)}</span>
                     {isPracticeMatch(match) && (
                       <span
                         style={{
@@ -900,15 +921,15 @@ export default function LandingPage() {
                       </span>
                     )}
                   </div>
-                  <span style={{ fontSize: '12px', color: '#c4b5fd', whiteSpace: 'nowrap' }}>{match.venue || '장소 미정'}</span>
+                  <span style={{ fontSize: '12px', color: '#bfdbfe', whiteSpace: 'nowrap' }}>{match.venue || '장소 미정'}</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 800, fontSize: '14px' }}>
                   <span style={{ color: '#e5e7eb' }}>{match.homeTeamName}</span>
-                  <span style={{ color: '#c4b5fd', fontSize: '12px' }}>vs</span>
+                  <span style={{ color: '#bfdbfe', fontSize: '12px' }}>vs</span>
                   <span style={{ color: '#e5e7eb' }}>{match.awayTeamName}</span>
                 </div>
                 {match.notes && (
-                  <span style={{ color: '#c084fc', fontWeight: 700, fontSize: '12px' }}>{match.notes}</span>
+                  <span style={{ color: '#93c5fd', fontWeight: 700, fontSize: '12px' }}>{match.notes}</span>
                 )}
               </div>
             ))}
@@ -1015,7 +1036,7 @@ export default function LandingPage() {
               boxShadow: '0 0 0 6px rgba(96, 165, 250, 0.18)',
             }}
           />
-          <p style={{ margin: 0, fontWeight: 800, letterSpacing: '0.05em', fontSize: '13px' }}>AUBL KEY VALUES</p>
+          <p style={{ margin: 0, fontWeight: 800, letterSpacing: '0.05em', fontSize: '13px' }}>{brand.leagueName} KEY VALUES</p>
         </div>
         <div
           style={{
@@ -1100,9 +1121,9 @@ export default function LandingPage() {
             style={{
               width: '10px',
               height: '10px',
-              backgroundColor: '#f97316',
+              backgroundColor: '#1e3a8a',
               borderRadius: '999px',
-              boxShadow: '0 0 0 6px rgba(249, 115, 22, 0.18)',
+              boxShadow: '0 0 0 6px rgba(30, 58, 138, 0.22)',
             }}
           />
           <p style={{ margin: 0, fontWeight: 700, letterSpacing: '0.05em', fontSize: '13px' }}>2026 시즌 하이라이트 & 바로가기</p>
@@ -1136,7 +1157,7 @@ export default function LandingPage() {
                     width: '52px',
                     height: '52px',
                     borderRadius: '14px',
-                    backgroundColor: 'rgba(249, 115, 22, 0.12)',
+                    backgroundColor: 'rgba(30, 58, 138, 0.24)',
                     display: 'grid',
                     placeItems: 'center',
                     fontSize: '24px',
@@ -1173,7 +1194,7 @@ export default function LandingPage() {
         style={{
           borderRadius: 'var(--surface-radius-lg)',
           padding: 'var(--cta-padding)',
-          background: 'linear-gradient(120deg, rgba(249, 115, 22, 0.16), rgba(99, 102, 241, 0.16))',
+          background: 'linear-gradient(120deg, rgba(122, 18, 33, 0.18), rgba(30, 58, 138, 0.2))',
           border: '1px solid rgba(148, 163, 184, 0.25)',
           display: 'flex',
           alignItems: 'center',
@@ -1187,14 +1208,14 @@ export default function LandingPage() {
             FOLLOW
           </span>
           <p style={{ margin: 0, fontSize: 'clamp(18px, 4.8vw, 20px)', fontWeight: 900, color: '#a4a9b5ff' }}>
-            인스타그램 @aubl_1981 에서 실시간 경기 사진과 이벤트를 확인하세요.
+            인스타그램에서 {brand.leagueName} 소식을 확인하세요.
           </p>
           <span style={{ color: '#a4a9b5ff', opacity: 0.8, fontWeight: 600, fontSize: 'clamp(13px, 3.5vw, 14px)' }}>
             선수들의 루틴, 경기 비하인드, 팬 굿즈 소식까지 놓치지 마세요.
           </span>
         </div>
         <a
-          href="https://www.instagram.com/aubl_1981/"
+          href={brand.instagramUrl}
           target="_blank"
           rel="noreferrer"
           style={{

@@ -867,9 +867,9 @@ export default function MatchSchedulePage() {
             padding: '10px 18px',
             border: '1px solid rgba(148,163,184,0.4)',
             background: canEdit
-              ? showForm
+                ? showForm
                 ? 'rgba(148,163,184,0.2)'
-                : 'linear-gradient(90deg, #f97316, #f59e0b)'
+                : 'linear-gradient(90deg, #d71f29, #ef4444)'
               : 'rgba(148,163,184,0.15)',
             color: canEdit ? (showForm ? '#e2e8f0' : '#0b0f1a') : 'rgba(203,213,225,0.7)',
             fontWeight: 800,
@@ -893,7 +893,7 @@ export default function MatchSchedulePage() {
       >
         {[
           { path: '/schedule/results', label: '경기 결과', desc: '종료 경기 모아보기' },
-          { path: '/schedule/groups', label: '조별 일정', desc: '구분(으뜸/버금)별 캘린더' },
+          { path: '/schedule', label: '정규리그/포스트시즌', desc: '단일리그 일정 확인' },
           { path: '/schedule/practice', label: '연습경기', desc: '연습경기 전용 목록' },
           { path: '/schedule/manage', label: '일정 관리', desc: '데모용 더미 등록 & 상태 변경' },
         ].map((item) => (
@@ -1040,7 +1040,7 @@ export default function MatchSchedulePage() {
                 onChange={(event) => setForm((prev) => ({ ...prev, recordMode: event.target.value as MatchRecordMode }))}
                 style={inputStyle}
               >
-                <option value="official">AUBL 공식경기</option>
+                <option value="official">HOMESTEAL 공식경기</option>
                 <option value="practice">연습경기 (공식기록 미반영)</option>
               </select>
             </label>

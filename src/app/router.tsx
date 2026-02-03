@@ -5,13 +5,15 @@ import IntroPage from '../front/pages/IntroPage';
 import RulePage from '../front/pages/RulePage';
 import TeamsPage from '../front/pages/TeamsPage';
 import StandingsPage from './pages/StandingPage';
-import PredictionPage from './pages/PredictionPage';
 import RecordPage from './pages/RecordPage';
 import CommunityPage from './pages/CommunityPage';
-import CommunityGalleryPage from './pages/CommunityGalleryPage'; // 새로 추가
 import CommunityNoticesPage from './pages/CommunityNoticesPage'; // 새로 추가
 import NoticeWritePage from './pages/NoticeWritePage'; // 새로 추가
 import NoticeDetailPage from './pages/NoticeDetailPage'; // 새로 추가
+import CommunityBoardPage from './pages/CommunityBoardPage';
+import CommunityBoardWritePage from './pages/CommunityBoardWritePage';
+import CommunityBoardDetailPage from './pages/CommunityBoardDetailPage';
+import ManualPage from './pages/ManualPage';
 import ScoreboardPage from '../scoreboard/pages/ScoreboardPage';
 import ScoreboardTextPage from '../scoreboard/pages/ScoreboardTextPage';
 import ScoreboardLiveOverlayPage from '../scoreboard/pages/ScoreboardLiveOverlayPage';
@@ -19,9 +21,8 @@ import ScorekeeperPage from '../scorekeeper/pages/ScorekeeperPage';
 import PitcherRecordPage from './pages/PitcherRecordPage';
 import BatterRecordPage from './pages/BatterRecordPage';
 import PlayerDetailPage from './pages/PlayerDetailPage';
-import MatchSchedulePage from './pages/MatchSchedulePage';
-import ScheduleResultsPage from './pages/ScheduleResultsPage';
 import ScheduleGroupsPage from './pages/ScheduleGroupsPage';
+import ScheduleResultsPage from './pages/ScheduleResultsPage';
 import ScheduleManagePage from './pages/ScheduleManagePage';
 import ScheduleLivePage from './pages/ScheduleLivePage';
 import SchedulePracticePage from './pages/SchedulePracticePage';
@@ -31,7 +32,9 @@ import AccessDeniedPage from './pages/AccessDeniedPage';
 import AccountPage from './pages/AccountPage';
 import { RequireAdmin } from '../shared/auth/RequireAdmin';
 import { MaintenanceGuard } from '../shared/auth/MaintenanceGuard';
+import { RequireAuth } from '../shared/auth/RequireAuth';
 import AdminLayoutPage from './pages/admin/AdminLayoutPage';
+import AdminBrandPage from './pages/admin/AdminBrandPage';
 import AdminLandingPage from './pages/admin/AdminLandingPage';
 import AdminIntroPage from './pages/admin/AdminIntroPage';
 import AdminRulesPage from './pages/admin/AdminRulesPage';
@@ -63,6 +66,10 @@ export const router = createBrowserRouter([
         element: <TeamsPage />,
       },
       {
+        path: 'manual',
+        element: <ManualPage />,
+      },
+      {
         path: 'standings',
         element: <StandingsPage />,
       },
@@ -72,14 +79,24 @@ export const router = createBrowserRouter([
       },
       {
         path: 'prediction',
-        element: <PredictionPage />,
+        element: <Navigate to="/schedule" replace />,
       },
       {
         path: 'community',
         children: [
           { index: true, element: <CommunityPage /> }, // 메인 대시보드
-          { path: 'gallery', element: <CommunityGalleryPage /> }, // 갤러리 임베드
+          { path: 'gallery', element: <Navigate to="/community" replace /> },
           { path: 'notices', element: <CommunityNoticesPage /> }, // 공지 목록
+          { path: 'board', element: <CommunityBoardPage /> },
+          {
+            path: 'board/new',
+            element: (
+              <RequireAuth>
+                <CommunityBoardWritePage />
+              </RequireAuth>
+            ),
+          },
+          { path: 'board/:postId', element: <CommunityBoardDetailPage /> },
           { 
             path: 'notices/new', 
             element: (
@@ -94,7 +111,7 @@ export const router = createBrowserRouter([
       },
       {
         path: 'schedule',
-        element: <MatchSchedulePage />,
+        element: <ScheduleGroupsPage />,
       },
       {
         path: 'schedule/live',
@@ -106,7 +123,7 @@ export const router = createBrowserRouter([
       },
       {
         path: 'schedule/groups',
-        element: <ScheduleGroupsPage />,
+        element: <Navigate to="/schedule" replace />,
       },
       {
         path: 'schedule/practice',
@@ -164,7 +181,8 @@ export const router = createBrowserRouter([
           </RequireAdmin>
         ),
         children: [
-          { index: true, element: <Navigate to="landing" replace /> },
+          { index: true, element: <Navigate to="brand" replace /> },
+          { path: 'brand', element: <AdminBrandPage /> },
           { path: 'landing', element: <AdminLandingPage /> },
           { path: 'intro', element: <AdminIntroPage /> },
           { path: 'rules', element: <AdminRulesPage /> },

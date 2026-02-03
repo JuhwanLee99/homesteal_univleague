@@ -1,5 +1,6 @@
 /**
- * 2026 시즌 A~H조 조편성 — 대표자회의 확정 후 업데이트.
+ * 레거시 그룹 코드(A~H) 지원용 유틸.
+ * 현재 Homsteal Univleague는 단일리그를 기본으로 운영한다.
  * group 값을 변경하면 TeamsPage, ScheduleGroupsPage 등에 자동 반영됩니다.
  */
 

@@ -41,7 +41,7 @@ function createInitialPracticeForm() {
     homeTeamName: '',
     awayTeamName: '',
     startAtLocal: toLocalDateTimeValue(new Date(Date.now() + 60 * 60 * 1000)),
-    venue: 'AUBL 연습구장',
+    venue: 'HOMESTEAL 연습구장',
     status: 'scheduled' as MatchSchedule['status'],
     notes: '',
   };
@@ -102,9 +102,10 @@ export default function SchedulePracticePage() {
       homeTeamName,
       awayTeamName,
       startTime: parsed.toISOString(),
-      venue: form.venue.trim() || 'AUBL 연습구장',
+      venue: form.venue.trim() || 'HOMESTEAL 연습구장',
       status: form.status,
       recordMode: 'practice',
+      phase: 'PRACTICE',
       notes: form.notes.trim() || undefined,
       lineups: {
         home: makePracticeLineup(),
@@ -295,7 +296,7 @@ export default function SchedulePracticePage() {
               <input
                 value={form.venue}
                 onChange={(event) => setForm((prev) => ({ ...prev, venue: event.target.value }))}
-                placeholder="예: AUBL 연습구장"
+                placeholder="예: HOMESTEAL 연습구장"
                 style={{
                   borderRadius: '10px',
                   border: '1px solid rgba(148,163,184,0.35)',
