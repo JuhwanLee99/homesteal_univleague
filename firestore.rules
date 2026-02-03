@@ -1,0 +1,111 @@
+rules_version = '2';
+
+service cloud.firestore {
+  // 관리자 권한 확인 함수
+  function isAdmin() {
+  // ✅ 안전: 오직 set-admin-claim.js로 권한을 받은 계정만 통과
+  return request.auth != null && request.auth.token.admin == true;
+  }
+
+  function isValidPresenceCreate(visitorId) {
+    return request.resource.data.keys().hasOnly(['visitorId', 'isAnonymous', 'lastHeartbeat', 'expiresAt'])
+      && request.resource.data.visitorId == visitorId
+      && request.resource.data.isAnonymous is bool
+      && request.resource.data.lastHeartbeat is int
+      && request.resource.data.expiresAt is int
+      && request.resource.data.expiresAt >= request.resource.data.lastHeartbeat;
+  }
+
+  function isValidPresenceUpdate(visitorId) {
+    return request.resource.data.visitorId == visitorId
+      && request.resource.data.isAnonymous is bool
+      && request.resource.data.lastHeartbeat is int
+      && request.resource.data.expiresAt is int
+      && request.resource.data.expiresAt >= request.resource.data.lastHeartbeat
+      && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['visitorId', 'isAnonymous', 'lastHeartbeat', 'expiresAt']);
+  }
+
+  match /databases/{database}/documents {
+    // 앱 전반 설정 (현재 활성 경기 포인터)
+    match /app/current {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // 경기 일정
+    match /matches/{matchId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // [수정됨] 공지사항 및 댓글 규칙
+    match /notices/{noticeId} {
+      // 공지사항 자체는 누구나 읽기 가능, 쓰기는 관리자만
+      allow read: if true;
+      allow write: if isAdmin();
+
+      // [추가] 공지사항 하위의 댓글 컬렉션 규칙
+      match /comments/{commentId} {
+        // 1. 읽기: 누구나 가능 (비로그인 사용자 포함)
+        allow read: if true;
+        
+        // 2. 쓰기(생성): 로그인한 사용자만 가능
+        allow create: if request.auth != null;
+        
+        // 3. 수정/삭제: 관리자이거나, 본인이 작성한 댓글(uid 일치)인 경우만 가능
+        allow update, delete: if request.auth != null && (
+          isAdmin() || request.auth.uid == resource.data.uid
+        );
+      }
+    }
+
+    // 실시간 경기 상태 (스코어보드/문자중계)
+    match /matchStates/{matchId} {
+      allow read: if true;
+      allow write: if isAdmin();
+
+      match /feed/{entryId} {
+        allow read: if true;
+        allow write: if isAdmin();
+      }
+      match /events/{entryId} {
+        allow read: if true;
+        allow write: if isAdmin();
+      }
+
+      match /presence/{visitorId} {
+        allow read: if true;
+        allow create: if isValidPresenceCreate(visitorId);
+        allow update: if isValidPresenceUpdate(visitorId);
+        allow delete: if true;
+      }
+    }
+
+    // 랜딩/인트로 콘텐츠 (공개 읽기, 관리자 편집)
+    match /settings/content {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // LIVE INFO (실시간)
+    match /settings/liveInfo {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // 정적 콘텐츠 + 버전 메타
+    match /settings/staticContent {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /settings/contentMeta {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // 그 외 모든 접근 거부
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
