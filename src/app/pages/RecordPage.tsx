@@ -2,18 +2,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import gsap from 'gsap';
 import { TEAM_RECORDS, TEAMS } from '../../shared/lib/mockData';
+import { useContent } from '../../shared/state/contentProvider';
 import type { TeamSeasonRecord } from '../../shared/types';
 
 interface EnrichedRecord extends TeamSeasonRecord {
   teamName: string;
-  division: string;
   color: string;
-  founded: number;
 }
 
-type DivisionFilter = 'ALL' | 'EUTTEUM' | 'BEOGEUM';
-
 export default function RecordPage() {
+  const { content } = useContent();
   const years = useMemo(
     () =>
       Array.from(new Set(TEAM_RECORDS.map((record) => record.year))).sort((a, b) => b - a),
@@ -21,35 +19,23 @@ export default function RecordPage() {
   );
   const [selectedYear, setSelectedYear] = useState<number>(years[0]);
   const [searchTerm, setSearchTerm] = useState<string>('');
-  const [selectedDivision, setSelectedDivision] = useState<DivisionFilter>('ALL');
-  const divisionOptions: { key: DivisionFilter; label: string }[] = [
-    { key: 'ALL', label: '전체' },
-    { key: 'EUTTEUM', label: '으뜸조' },
-    { key: 'BEOGEUM', label: '버금조' },
-  ];
 
   const sectionRef = useRef<HTMLDivElement>(null);
   const cardsRef = useRef<HTMLDivElement[]>([]);
   const tableRef = useRef<HTMLDivElement>(null);
 
-  // 데이터 필터링 로직
+  // 홈스틸 유니브리그 기준: 연도/검색 필터만 사용
   const records = useMemo<EnrichedRecord[]>(() => {
     const filtered = TEAM_RECORDS.filter((record) => {
-      const isYear = record.year === selectedYear;
-      if (!isYear) return false;
-      if (selectedDivision === 'ALL') return true;
-      const team = TEAMS.find((t) => t.id === record.teamId);
-      return team?.division === selectedDivision;
+      return record.year === selectedYear;
     });
 
     let enriched = filtered.map((record) => {
       const team = TEAMS.find((t) => t.id === record.teamId);
       return {
         ...record,
-        teamName: team?.name ?? 'Homsteal Team',
-        division: team?.division ?? 'EUTTEUM',
+        teamName: team?.name ?? '미등록 팀',
         color: team?.logoColor ?? '#f97316',
-        founded: team?.founded ?? 1981,
       };
     });
 
@@ -65,7 +51,7 @@ export default function RecordPage() {
     }
 
     return enriched;
-  }, [selectedYear, searchTerm, selectedDivision]);
+  }, [selectedYear, searchTerm]);
 
   const topPlayers = useMemo(() => {
     return records
@@ -75,7 +61,7 @@ export default function RecordPage() {
   }, [records]);
 
   const leagueSummary = useMemo(() => {
-    if (records.length === 0) return { totalGames: 0, avgERA: 0, avgOPS: 0, stolen: 0 };
+    if (records.length === 0) return { totalGames: 0, avgERA: 0, avgOPS: 0, stolen: 0, teams: 0 };
 
     const totalGames = records.reduce((sum, item) => sum + item.wins + item.losses + item.draws, 0);
     const avgERA = records.reduce((sum, item) => sum + item.era, 0) / records.length;
@@ -87,6 +73,7 @@ export default function RecordPage() {
       avgERA: Math.round(avgERA * 100) / 100,
       avgOPS: Math.round(avgOPS * 1000) / 1000,
       stolen,
+      teams: records.length,
     };
   }, [records]);
 
@@ -158,10 +145,10 @@ export default function RecordPage() {
         {/* 설명 텍스트 영역 (전체 너비 사용) */}
         <div className="record-hero" style={{ display: 'grid', gap: '8px' }}>
           <h2 style={{ margin: 0, fontSize: '32px', fontWeight: 900 }}>
-            전체 리그 현황 — 연도별 팀 스토리와 에이스 퍼포먼스를 한눈에.
+            {content.brand.leagueName} 기록실 — 시즌별 팀 리포트와 핵심 선수 퍼포먼스.
           </h2>
           <p style={{ margin: 0, color: '#cbd5e1', lineHeight: 1.6 }}>
-            기본 뷰는 전체 리그 집계이며, 조(으뜸/버금)를 선택하면 해당 조에 대한 세부 개요로 전환됩니다. 정규시즌 전적, 투·타 스탯, 주요 선수 WAR까지 연도 기준으로 정리했습니다.
+            홈스틸 유니브리그의 단일리그 운영 방식에 맞춰 시즌별 전체 팀 기록을 제공합니다. 정규리그 전적, 투·타 지표, 주요 선수 WAR를 연도 기준으로 확인할 수 있습니다.
           </p>
         </div>
 
@@ -203,29 +190,22 @@ export default function RecordPage() {
               </select>
             </div>
             <div style={{ display: 'grid', gap: '6px', flex: '0 0 220px' }}>
-              <label style={{ color: '#94a3b8', fontWeight: 800, fontSize: '12px' }}>조 선택</label>
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                {divisionOptions.map((option) => {
-                  const isActive = selectedDivision === option.key;
-                  return (
-                    <button
-                      key={option.key}
-                      type="button"
-                      onClick={() => setSelectedDivision(option.key)}
-                      style={{
-                        padding: '10px 12px',
-                        borderRadius: '10px',
-                        border: isActive ? '1px solid #f97316' : '1px solid rgba(148, 163, 184, 0.35)',
-                        background: isActive ? 'rgba(249, 115, 22, 0.12)' : '#0f172a',
-                        color: isActive ? '#f97316' : '#e2e8f0',
-                        fontWeight: 800,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      {option.label}
-                    </button>
-                  );
-                })}
+              <label style={{ color: '#94a3b8', fontWeight: 800, fontSize: '12px' }}>LEAGUE</label>
+              <div
+                style={{
+                  background: '#0f172a',
+                  color: '#e2e8f0',
+                  padding: '12px 14px',
+                  borderRadius: '12px',
+                  border: '1px solid rgba(148, 163, 184, 0.35)',
+                  fontWeight: 800,
+                  fontSize: '15px',
+                  minHeight: '47px',
+                  display: 'flex',
+                  alignItems: 'center',
+                }}
+              >
+                단일리그 통합 집계
               </div>
             </div>
             <div style={{ display: 'grid', gap: '6px', flex: 1 }}>
@@ -254,6 +234,7 @@ export default function RecordPage() {
             <Metric label="평균 OPS" value={`${leagueSummary.avgOPS}`} />
             <Metric label="도루 합계" value={`${leagueSummary.stolen}`} />
             <Metric label="총 경기" value={`${leagueSummary.totalGames}G`} />
+            <Metric label="집계 팀 수" value={`${leagueSummary.teams}팀`} />
           </div>
         </div>
       </section>
@@ -310,7 +291,7 @@ export default function RecordPage() {
                   <div style={{ display: 'grid', gap: '6px' }}>
                     <span style={{ fontWeight: 900, fontSize: '18px' }}>{record.teamName}</span>
                     <span style={{ color: '#94a3b8', fontWeight: 700 }}>
-                      {record.division} · {record.year}
+                      단일리그 · {record.year}
                     </span>
                   </div>
                   <div
