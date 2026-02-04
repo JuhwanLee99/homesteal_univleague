@@ -136,7 +136,7 @@
   max-height: none !important;
 }
 
-.mobile-layout > div:first-child {
+.mobile-layout > div:nth-child(2) {
   overflow: visible !important;
   height: auto !important;
   min-height: 500px !important;
@@ -164,7 +164,7 @@
   }
 
   /* 전광판(ScoreboardPanel)의 모든 제약 제거 */
-  .scoreboard-section > div:first-child {
+  .scoreboard-section > div:nth-child(2) {
     overflow: visible !important;
     overflow-y: visible !important;
     min-height: 500px !important;
@@ -176,14 +176,14 @@
   }
 
   /* 전광판 내부의 중간 영역(박스스코어+BSO/베이스)을 세로 배치로 변경 */
-  .scoreboard-section > div:first-child > div:nth-child(2) {
+  .scoreboard-section > div:nth-child(2) > div:nth-child(2) {
     height: auto !important;
     min-height: 0 !important;
     max-height: none !important;
   }
 
   /* 박스스코어와 BSO/베이스를 세로로 배치 */
-  .scoreboard-section > div:first-child > div:nth-child(2) > div {
+  .scoreboard-section > div:nth-child(2) > div:nth-child(2) > div {
     display: grid !important;
     grid-template-columns: 1fr !important;
     grid-template-rows: auto auto !important;
@@ -191,17 +191,17 @@
   }
 
   /* BSO/베이스를 두 번째 행으로 이동 */
-  .scoreboard-section > div:first-child > div:nth-child(2) > div > div:first-child {
+  .scoreboard-section > div:nth-child(2) > div:nth-child(2) > div > div:first-child {
     order: 2 !important;
   }
 
   /* 박스스코어를 첫 번째 행으로 */
-  .scoreboard-section > div:first-child > div:nth-child(2) > div > div:last-child {
+  .scoreboard-section > div:nth-child(2) > div:nth-child(2) > div > div:last-child {
     order: 1 !important;
   }
 
   /* 전광판 내부 모든 컨텐츠 높이 제한 제거 */
-  .scoreboard-section > div:first-child > * {
+  .scoreboard-section > div:nth-child(2) > * {
     max-height: none !important;
   }
 
@@ -239,7 +239,7 @@
   }
 
   /* 작은 모바일에서도 전광판 제약 제거 */
-  .scoreboard-section > div:first-child {
+  .scoreboard-section > div:nth-child(2) {
     grid-template-rows: auto auto auto !important;
   }
 }

@@ -135,6 +135,7 @@ export default function ScoreboardTextPage() {
     () => state.matches.find((m) => m.id === state.activeMatchId) ?? null,
     [state.matches, state.activeMatchId],
   );
+  const isPracticeMode = (activeMatch?.recordMode ?? 'official') === 'practice';
   const hasLiveOverlay = useMemo(() => Boolean((activeMatch?.liveVideoUrl || '').trim()), [activeMatch?.liveVideoUrl]);
   const noActiveMatch = !state.activeMatchId;
   const feed = useMemo(() => state.feed, [state.feed]);
@@ -174,7 +175,10 @@ export default function ScoreboardTextPage() {
   const jerseyMap = useMemo(() => buildJerseyMap(state.lineups, state.benches, state.removed), [state.lineups, state.benches, state.removed]);
   
   // [중요] buildPlayerStats가 이제 고유 키 로직을 따름
-  const playerStats = useMemo(() => buildPlayerStats(buildGameRecord(state)), [state]);
+  const playerStats = useMemo(
+    () => buildPlayerStats(buildGameRecord(state), { practiceMode: isPracticeMode }),
+    [state, isPracticeMode],
+  );
   
   const postSummary = useMemo(
     () => buildPostGameSummary(playerStats.hitters, playerStats.pitchers, state.score),
@@ -237,24 +241,122 @@ export default function ScoreboardTextPage() {
     <div className="scoreboard-text-page">
       <div className="main-content-grid">
         <div className={`scoreboard-section ${isMobile ? 'mobile-layout' : ''}`}>
-          {/* 동접자 수 표시 */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              marginBottom: '12px',
-              padding: '8px 12px',
-              background: 'rgba(34, 197, 94, 0.08)',
-              borderRadius: '10px',
-              width: 'fit-content',
-            }}
-          >
-            <span style={{ fontSize: '15px' }}>👥</span>
-            <span style={{ fontSize: '13px', color: '#22c55e', fontWeight: 600 }}>
-              현재 {state.onlineViewerCount}명 시청 중
-            </span>
-          </div>
+          {isMobile ? (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                marginBottom: '4px',
+                flexWrap: 'nowrap',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '3px',
+                  borderRadius: '999px',
+                  background: 'rgba(148,163,184,0.14)',
+                  border: '1px solid rgba(148,163,184,0.28)',
+                  width: 'fit-content',
+                  maxWidth: '100%',
+                  overflowX: 'auto',
+                  flexShrink: 1,
+                }}
+              >
+                <button
+                  type="button"
+                  style={{
+                    padding: '4px 8px',
+                    borderRadius: '999px',
+                    border: 'none',
+                    background: 'linear-gradient(120deg, #1e3a8a, #1d4ed8)',
+                    color: '#eaf2ff',
+                    fontWeight: 800,
+                    fontSize: '10.5px',
+                    whiteSpace: 'nowrap',
+                    boxShadow: '0 8px 18px rgba(29,78,216,0.25)',
+                    cursor: 'default',
+                  }}
+                  title="문자중계"
+                  aria-current="page"
+                >
+                  문자중계
+                </button>
+                {hasLiveOverlay ? (
+                  <button
+                    type="button"
+                    onClick={() => navigate('/live-overlay')}
+                    style={{
+                      padding: '4px 8px',
+                      borderRadius: '999px',
+                      border: 'none',
+                      background: 'rgba(148,163,184,0.24)',
+                      color: '#e2e8f0',
+                      fontWeight: 800,
+                      fontSize: '10.5px',
+                      whiteSpace: 'nowrap',
+                      cursor: 'pointer',
+                    }}
+                    title="라이브 오버레이"
+                  >
+                    라이브 오버레이
+                  </button>
+                ) : (
+                  <span
+                    style={{
+                      padding: '4px 8px',
+                      borderRadius: '999px',
+                      border: '1px dashed rgba(59,130,246,0.65)',
+                      background: 'rgba(30,58,138,0.2)',
+                      color: '#bfdbfe',
+                      fontWeight: 800,
+                      fontSize: '10.5px',
+                      whiteSpace: 'nowrap',
+                    }}
+                    title="이 경기에는 라이브 링크가 없습니다"
+                  >
+                    라이브 없음
+                  </span>
+                )}
+              </div>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  padding: '6px 8px',
+                  background: 'rgba(34, 197, 94, 0.08)',
+                  borderRadius: '10px',
+                  flexShrink: 0,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                <span style={{ fontSize: '13px' }}>👥</span>
+                <span style={{ fontSize: '11px', color: '#22c55e', fontWeight: 700 }}>접속 {state.onlineViewerCount}명</span>
+              </div>
+            </div>
+          ) : (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                marginBottom: '12px',
+                padding: '8px 12px',
+                background: 'rgba(34, 197, 94, 0.08)',
+                borderRadius: '10px',
+                width: 'fit-content',
+              }}
+            >
+              <span style={{ fontSize: '15px' }}>👥</span>
+              <span style={{ fontSize: '13px', color: '#22c55e', fontWeight: 600 }}>
+                현재 {state.onlineViewerCount}명 시청 중
+              </span>
+            </div>
+          )}
           <ScoreboardFrame
             variant="text"
             showFootnote={false}
@@ -1962,7 +2064,8 @@ function ensurePitcherStat(name: string, pos?: string): PitcherStatExt {
 
 // [수정] buildPlayerStats: ScorekeeperPage.tsx의 로직을 그대로 이식
 // 투수/타자 구분 로직, 고유 이름(uniqueName)을 Key로 사용하는 로직 적용
-function buildPlayerStats(record: ReturnType<typeof buildGameRecord>) {
+function buildPlayerStats(record: ReturnType<typeof buildGameRecord>, options?: { practiceMode?: boolean }) {
+  const practiceMode = options?.practiceMode === true;
   // 1. Roster Map의 Value 타입 확장 및 데이터 저장
   // { pos?: string; order: number; substitutionType?: string; isElite?: boolean } 형태로 저장
   const rosterHome = new Map<string, { pos?: string; order: number; substitutionType?: string; isElite?: boolean }>();
@@ -1982,8 +2085,18 @@ function buildPlayerStats(record: ReturnType<typeof buildGameRecord>) {
   const battingOrders: Record<'home' | 'away', Map<number, string[]>> = { home: new Map(), away: new Map() };
 
   const seedBattingOrders = (side: 'home' | 'away') => {
-    // 투수 타석 허용 (상위 9명)
-    const batting = record.lineups[side].slice(0, 9);
+    let batting = record.lineups[side].slice(0, 9);
+    if (practiceMode) {
+      const lineup = record.lineups[side];
+      let pitcherIndex = -1;
+      for (let idx = lineup.length - 1; idx >= 0; idx -= 1) {
+        if (lineup[idx].pos.toUpperCase() === 'P') {
+          pitcherIndex = idx;
+          break;
+        }
+      }
+      batting = lineup.filter((_, idx) => idx !== pitcherIndex);
+    }
     batting.forEach((slot, idx) => battingOrders[side].set(idx + 1, [getUniqueName(slot.name, slot.number)]));
   };
   seedBattingOrders('home');

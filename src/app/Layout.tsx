@@ -521,7 +521,7 @@ export default function Layout() {
                 </div>
               )}
 
-              {isScoreboardText && (
+              {isScoreboardText && !isMobileHeader && (
                 <div
                   style={{
                     display: 'flex',
