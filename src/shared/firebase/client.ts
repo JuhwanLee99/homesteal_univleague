@@ -1,7 +1,7 @@
 import { getApp, getApps, initializeApp } from 'firebase/app';
 import type { FirebaseOptions } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { connectFirestoreEmulator, getFirestore } from 'firebase/firestore';
+import { connectFirestoreEmulator, initializeFirestore } from 'firebase/firestore';
 
 const firebaseConfig: FirebaseOptions = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -16,7 +16,17 @@ const firebaseConfig: FirebaseOptions = {
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
 export const auth = getAuth(app);
-export const firestore = getFirestore(app);
+
+const forceLongPolling = import.meta.env.VITE_FIRESTORE_FORCE_LONG_POLLING === 'true';
+const autoDetectLongPolling =
+  import.meta.env.VITE_FIRESTORE_AUTO_DETECT_LONG_POLLING === 'true' ||
+  (import.meta.env.DEV && import.meta.env.VITE_FIRESTORE_AUTO_DETECT_LONG_POLLING !== 'false');
+
+export const firestore = initializeFirestore(app, {
+  // Improves stability when HTTP/3/QUIC or corporate proxies break WebChannel streams.
+  experimentalForceLongPolling: forceLongPolling,
+  experimentalAutoDetectLongPolling: !forceLongPolling && autoDetectLongPolling,
+});
 
 const useFsEmulator = import.meta.env.VITE_USE_FIRESTORE_EMULATOR === 'true';
 if (useFsEmulator) {
@@ -26,4 +36,10 @@ if (useFsEmulator) {
   connectFirestoreEmulator(firestore, host, port);
   // Optional: log once for debugging; safe in browser console.
   console.info(`[firestore] using emulator at ${host}:${port}`);
+}
+
+if (import.meta.env.DEV && (forceLongPolling || autoDetectLongPolling)) {
+  console.info(
+    `[firestore] transport: forceLongPolling=${forceLongPolling}, autoDetectLongPolling=${!forceLongPolling && autoDetectLongPolling}`,
+  );
 }

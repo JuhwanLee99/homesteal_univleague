@@ -363,10 +363,10 @@ export default function Layout() {
                 alignItems: 'center',
                 flexWrap: isMobileHeader ? 'wrap' : 'nowrap',
                 rowGap: isMobileHeader ? '8px' : '0px',
+                columnGap: '12px',
                 padding: 'var(--header-padding)',
                 paddingTop: isMobileHeader ? '8px' : '10px',
                 boxSizing: 'border-box',
-                gap: '12px',
               }}
             >
               <Link
