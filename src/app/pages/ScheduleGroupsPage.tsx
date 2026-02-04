@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { type CSSProperties, useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useDemoStore } from '../../shared/state/demoStore';
 import type { MatchPhase, MatchSchedule } from '../../shared/state/demoStore';
+import { useAdmin } from '../../shared/auth/useAdmin';
 
 function safeTime(value: string) {
   const ts = new Date(value).getTime();
@@ -26,9 +27,34 @@ function statusLabel(match: MatchSchedule) {
   return { text: '예정', color: '#22c55e', bg: 'rgba(34,197,94,0.16)' };
 }
 
+const quickActionStyle: CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '6px',
+  padding: '8px 10px',
+  borderRadius: '999px',
+  border: '1px solid rgba(148,163,184,0.35)',
+  background: 'rgba(255,255,255,0.03)',
+  color: '#e2e8f0',
+  fontWeight: 800,
+  fontSize: '12px',
+  cursor: 'pointer',
+};
+
+const quickActionDisabledStyle: CSSProperties = {
+  ...quickActionStyle,
+  border: '1px dashed rgba(248, 113, 113, 0.6)',
+  color: '#f87171',
+  background: 'rgba(248, 113, 113, 0.08)',
+  cursor: 'not-allowed',
+};
+
 export default function ScheduleGroupsPage() {
   const { state, actions } = useDemoStore();
+  const navigate = useNavigate();
+  const { isAdmin } = useAdmin();
   const [tab, setTab] = useState<'REGULAR' | 'POSTSEASON'>('REGULAR');
+  const [tooltip, setTooltip] = useState<{ text: string; x: number; y: number } | null>(null);
 
   useEffect(() => {
     void actions.loadFullSchedule();
@@ -46,6 +72,16 @@ export default function ScheduleGroupsPage() {
   }, [state.matches]);
 
   const matches = tab === 'REGULAR' ? regular : postseason;
+
+  const showBlockedTooltip = (el: HTMLElement | null) => {
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    setTooltip({
+      text: '관리자 로그인이 필요합니다',
+      x: rect.left + rect.width / 2,
+      y: rect.bottom,
+    });
+  };
 
   return (
     <div style={{ display: 'grid', gap: '16px' }}>
@@ -119,6 +155,20 @@ export default function ScheduleGroupsPage() {
         <div style={{ display: 'grid', gap: '10px' }}>
           {matches.map((match) => {
             const status = statusLabel(match);
+            const hasLiveOverlay = Boolean((match.liveVideoUrl || '').trim());
+            const textButtonLabel = match.status === 'completed' ? '경기 결과' : match.status === 'canceled' ? '취소됨' : '문자중계';
+            const goTo = (path: string) => {
+              actions.selectMatch(match.id);
+              setTooltip(null);
+              navigate(path);
+            };
+            const goToScorekeeper = (buttonEl: HTMLButtonElement | null) => {
+              if (!isAdmin) {
+                showBlockedTooltip(buttonEl);
+                return;
+              }
+              goTo('/scorekeeper');
+            };
             return (
               <article
                 key={match.id}
@@ -131,26 +181,88 @@ export default function ScheduleGroupsPage() {
                   gap: '6px',
                 }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                  <div style={{ color: '#f8fafc', fontWeight: 800 }}>
-                    {match.awayTeamName} vs {match.homeTeamName}
-                  </div>
-                  <span
-                    style={{
-                      padding: '2px 8px',
-                      borderRadius: '999px',
-                      background: status.bg,
-                      color: status.color,
-                      fontWeight: 800,
-                      fontSize: '11px',
-                    }}
-                  >
-                    {status.text}
-                  </span>
+                <div style={{ color: '#f8fafc', fontWeight: 800 }}>
+                  {match.awayTeamName} vs {match.homeTeamName}
                 </div>
-                <div style={{ color: '#94a3b8', fontSize: '13px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                  <span>{new Date(match.startTime).toLocaleString('ko-KR')}</span>
-                  <span>· {match.venue}</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <div style={{ color: '#94a3b8', fontSize: '13px', display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                    <span>{new Date(match.startTime).toLocaleString('ko-KR')}</span>
+                    <span>· {match.venue}</span>
+                    <span
+                      style={{
+                        padding: '2px 8px',
+                        borderRadius: '999px',
+                        background: status.bg,
+                        color: status.color,
+                        fontWeight: 800,
+                        fontSize: '11px',
+                      }}
+                    >
+                      {status.text}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                    <button type="button" onClick={() => goTo('/scoreboard')} style={quickActionStyle} title="전광판">
+                      <span aria-hidden>📺</span>
+                      전광판
+                    </button>
+                    <button type="button" onClick={() => goTo('/scoreboard-text')} style={quickActionStyle} title={textButtonLabel}>
+                      <span aria-hidden>💬</span>
+                      {textButtonLabel}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => hasLiveOverlay && goTo('/live-overlay')}
+                      style={hasLiveOverlay ? quickActionStyle : quickActionDisabledStyle}
+                      title={hasLiveOverlay ? '라이브 오버레이' : '기록원에서 유튜브 링크 미입력'}
+                      disabled={!hasLiveOverlay}
+                    >
+                      <span aria-hidden>{hasLiveOverlay ? '🛰️' : '🚫'}</span>
+                      {hasLiveOverlay ? '라이브오버레이' : '라이브 없음'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => goToScorekeeper(e.currentTarget)}
+                      onMouseEnter={(e) => {
+                        if (!isAdmin) showBlockedTooltip(e.currentTarget);
+                      }}
+                      onMouseLeave={() => setTooltip(null)}
+                      onFocus={(e) => {
+                        if (!isAdmin) showBlockedTooltip(e.currentTarget);
+                      }}
+                      onBlur={() => setTooltip(null)}
+                      style={{
+                        ...quickActionStyle,
+                        cursor: isAdmin ? 'pointer' : 'not-allowed',
+                        color: isAdmin ? quickActionStyle.color : 'rgba(203,213,225,0.6)',
+                      }}
+                      title="기록원"
+                    >
+                      <span aria-hidden>📝</span>
+                      기록원
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => goToScorekeeper(e.currentTarget)}
+                      onMouseEnter={(e) => {
+                        if (!isAdmin) showBlockedTooltip(e.currentTarget);
+                      }}
+                      onMouseLeave={() => setTooltip(null)}
+                      onFocus={(e) => {
+                        if (!isAdmin) showBlockedTooltip(e.currentTarget);
+                      }}
+                      onBlur={() => setTooltip(null)}
+                      style={{
+                        ...quickActionStyle,
+                        cursor: isAdmin ? 'pointer' : 'not-allowed',
+                        color: isAdmin ? quickActionStyle.color : 'rgba(203,213,225,0.6)',
+                      }}
+                      title="라인업 편집"
+                    >
+                      <span aria-hidden>📋</span>
+                      라인업 편집
+                    </button>
+                  </div>
                 </div>
                 {(typeof match.homeScore === 'number' || typeof match.awayScore === 'number') && (
                   <div style={{ color: '#e2e8f0', fontWeight: 800 }}>
@@ -161,6 +273,28 @@ export default function ScheduleGroupsPage() {
               </article>
             );
           })}
+        </div>
+      )}
+      {tooltip && (
+        <div
+          style={{
+            position: 'fixed',
+            left: `${tooltip.x}px`,
+            top: `${tooltip.y + 10}px`,
+            transform: 'translateX(-50%)',
+            background: 'rgba(15,23,42,0.96)',
+            color: '#e2e8f0',
+            padding: '8px 10px',
+            borderRadius: '8px',
+            border: '1px solid rgba(148,163,184,0.35)',
+            fontSize: '12px',
+            fontWeight: 700,
+            zIndex: 60,
+            pointerEvents: 'none',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {tooltip.text}
         </div>
       )}
     </div>

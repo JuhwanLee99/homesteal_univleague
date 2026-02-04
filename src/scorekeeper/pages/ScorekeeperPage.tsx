@@ -6797,6 +6797,23 @@ function TeamEditor({
     isOhtaniRule: false,
     isElite: false,
   });
+  const isEmptyTeamEditorSlot = (slot?: TeamEditorSlot) => {
+    if (!slot) return true;
+    return !slot.name.trim() && !slot.number.trim() && !slot.pos.trim();
+  };
+  const getPracticePitcherIndexForEditor = (slots: TeamEditorSlot[]) => {
+    if (!slots.length) return -1;
+    const lastIndex = slots.length - 1;
+    if (slots[lastIndex]?.pos?.toUpperCase() === 'P') return lastIndex;
+    for (let idx = lastIndex - 1; idx >= 0; idx -= 1) {
+      if (slots[idx]?.pos?.toUpperCase() !== 'P') continue;
+      const trailing = slots.slice(idx + 1);
+      if (trailing.every((slot) => isEmptyTeamEditorSlot(slot))) {
+        return idx;
+      }
+    }
+    return -1;
+  };
 
   // [수정] 빈 라인업을 받아도 UI 입력칸을 유지하기 위해 동적으로 빈 슬롯 생성
   const filledLineup = useMemo<TeamEditorSlot[]>(() => {
@@ -6808,11 +6825,19 @@ function TeamEditor({
           { ...makeEmptySlot(), pos: 'P' },
         ];
       }
-      const hasDedicatedPitcher = base[base.length - 1]?.pos?.toUpperCase() === 'P';
-      if (!hasDedicatedPitcher) {
+      const pitcherIndex = getPracticePitcherIndexForEditor(base);
+      if (pitcherIndex < 0) {
         base.push({ ...makeEmptySlot(), pos: 'P' });
+        return base;
       }
-      return base;
+
+      const sanitized = base.filter((slot, idx) => {
+        if (idx === pitcherIndex) return false;
+        if (idx > pitcherIndex && isEmptyTeamEditorSlot(slot)) return false;
+        return true;
+      });
+      sanitized.push(base[pitcherIndex]);
+      return sanitized;
     }
     const result: TeamEditorSlot[] = [...lineup];
     const emptySlot = makeEmptySlot();

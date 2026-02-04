@@ -43,6 +43,8 @@ const ADMIN_EMAILS = (import.meta.env.VITE_ADMIN_EMAILS ?? '')
   .filter(Boolean);
 const FEED_LIMIT = 50; // 관중 뷰 기본 구독 크기
 const SCORER_FEED_LIMIT = 200; // 기록원 재접속 시 충분한 버퍼
+const INLINE_STATE_FEED_LIMIT = 120; // 동일 계정 관전 탭 fallback용
+const INLINE_STATE_EVENTS_LIMIT = 120; // 동일 계정 관전 탭 fallback용
 const WRITE_DEBOUNCE_MS = 1_000; // 기록원 상태 동기화 디바운스 (쓰기 폭주 방지)
 const SCORER_LOCK_TTL_MS = 300_000; // 5분 후 락 만료 (이닝 교대 대비 여유)
 const SCORER_LOCK_HEARTBEAT_MS = 60_000; // 60초마다 하트비트 갱신
@@ -518,10 +520,41 @@ function isPracticeActiveMatch(state: DemoState) {
   return isPracticeMatch(activeMatch);
 }
 
+function isLineupSlotEmpty(slot?: PlayerSlot) {
+  if (!slot) return true;
+  return !slot.name.trim() && !slot.number.trim() && !slot.pos.trim();
+}
+
 function getPracticePitcherIndex(lineup: PlayerSlot[]) {
   if (!lineup.length) return -1;
   const lastIndex = lineup.length - 1;
-  return lineup[lastIndex].pos.toUpperCase() === 'P' ? lastIndex : -1;
+  if (lineup[lastIndex].pos.toUpperCase() === 'P') return lastIndex;
+  for (let idx = lastIndex - 1; idx >= 0; idx -= 1) {
+    if (lineup[idx].pos.toUpperCase() !== 'P') continue;
+    const trailing = lineup.slice(idx + 1);
+    if (trailing.every((slot) => isLineupSlotEmpty(slot))) {
+      return idx;
+    }
+  }
+  return -1;
+}
+
+function sanitizePracticeLineup(lineup: PlayerSlot[]) {
+  const pitcherIndex = getPracticePitcherIndex(lineup);
+  if (pitcherIndex < 0) {
+    return lineup.map((slot) => ({ ...slot }));
+  }
+
+  const sanitized = lineup
+    .filter((slot, idx) => {
+      if (idx === pitcherIndex) return false;
+      if (idx > pitcherIndex && isLineupSlotEmpty(slot)) return false;
+      return true;
+    })
+    .map((slot) => ({ ...slot }));
+
+  sanitized.push({ ...lineup[pitcherIndex] });
+  return sanitized;
 }
 
 function getBattingEntriesForLineup(
@@ -530,7 +563,13 @@ function getBattingEntriesForLineup(
 ) {
   if (allowExtendedBattingOrder) {
     const pitcherIndex = getPracticePitcherIndex(lineup);
-    return lineup.filter((_, idx) => idx !== pitcherIndex);
+    return lineup.filter((slot, idx) => {
+      if (idx === pitcherIndex) return false;
+      if (pitcherIndex >= 0 && idx > pitcherIndex) {
+        return !isLineupSlotEmpty(slot);
+      }
+      return true;
+    });
   }
   return lineup.filter((slot, idx) => {
     if (idx < 9) return true;
@@ -975,7 +1014,21 @@ function normalizeState(base: DemoState, incoming: DemoState): DemoState {
 
   const rawLineups = merged.lineups ?? base.lineups;
   const hasLineups = hasActualPlayers(rawLineups.home) || hasActualPlayers(rawLineups.away);
-  const safeLineups = hasLineups ? ensureCompleteLineups(rawLineups) : rawLineups;
+  const activeMatchId =
+    typeof merged.activeMatchId === 'string'
+      ? merged.activeMatchId
+      : merged.activeMatchId === null
+        ? null
+        : base.activeMatchId;
+  const activeMatch = activeMatchId ? matches.find((m) => m.id === activeMatchId) : null;
+  const safeLineups = hasLineups
+    ? isPracticeMatch(activeMatch)
+      ? {
+          home: sanitizePracticeLineup(rawLineups.home),
+          away: sanitizePracticeLineup(rawLineups.away),
+        }
+      : ensureCompleteLineups(rawLineups)
+    : rawLineups;
   const history = Array.isArray(merged.history)
     ? merged.history.map((snap) => {
         const normalizedHistoryFeed = normalizeFeed((snap as DemoSnapshot).feed, { inning: snap.inning, half: snap.half });
@@ -1014,7 +1067,7 @@ function normalizeState(base: DemoState, incoming: DemoState): DemoState {
     gameStarted,
     liveVideoUrl: typeof merged.liveVideoUrl === 'string' ? merged.liveVideoUrl : base.liveVideoUrl,
     liveDelaySeconds: typeof merged.liveDelaySeconds === 'number' ? merged.liveDelaySeconds : base.liveDelaySeconds,
-    activeMatchId: typeof merged.activeMatchId === 'string' ? merged.activeMatchId : merged.activeMatchId === null ? null : base.activeMatchId,
+    activeMatchId,
     scorerUid: typeof merged.scorerUid === 'string' ? merged.scorerUid : null,
     scorerName: typeof merged.scorerName === 'string' ? merged.scorerName : null,
     scorerEmail: typeof merged.scorerEmail === 'string' ? merged.scorerEmail : null,
@@ -3013,7 +3066,10 @@ function resetGameForMatch(state: DemoState, match: MatchSchedule): DemoState {
   const lineups =
     hasLineups
       ? isPracticeMatch(match)
-        ? cloneLineups(rawLineups)
+        ? {
+            home: sanitizePracticeLineup(rawLineups.home),
+            away: sanitizePracticeLineup(rawLineups.away),
+          }
         : ensureCompleteLineups(rawLineups)
       : rawLineups;
   const benches = match.benches ?? { home: [], away: [] };
@@ -3062,7 +3118,10 @@ function resetGameForMatch(state: DemoState, match: MatchSchedule): DemoState {
 
 function createNewGame(state: DemoState): DemoState {
   const preparedLineups = isPracticeActiveMatch(state)
-    ? cloneLineups(state.lineups)
+    ? {
+        home: sanitizePracticeLineup(state.lineups.home),
+        away: sanitizePracticeLineup(state.lineups.away),
+      }
     : ensureCompleteLineups(state.lineups);
   return {
     inning: 1,
@@ -4163,14 +4222,30 @@ export function DemoStoreProvider({ children }: { children: React.ReactNode }) {
 
     writeTimerRef.current = setTimeout(() => {
             const snapshot = snapshotState(stateRef.current);
-            const { matches: _matches, feed: _feed, events: _events, onlineViewerCount: _onlineViewerCount, ...core } = snapshot;
-            const key = JSON.stringify({ matchId, core });
+            const { matches: _matches, onlineViewerCount: _onlineViewerCount, ...coreWithLogs } = snapshot;
+            const inlineFeed = coreWithLogs.feed.slice(-INLINE_STATE_FEED_LIMIT);
+            const inlineEvents = coreWithLogs.events.slice(0, INLINE_STATE_EVENTS_LIMIT);
+            const { feed: _feed, events: _events, ...core } = coreWithLogs;
+            const lastFeed = inlineFeed.length ? inlineFeed[inlineFeed.length - 1] : null;
+            const lastEvent = inlineEvents.length ? inlineEvents[0] : null;
+            const key = JSON.stringify({
+              matchId,
+              core,
+              feedCount: coreWithLogs.feed.length,
+              eventsCount: coreWithLogs.events.length,
+              lastFeedCreatedAt: lastFeed?.createdAt ?? null,
+              lastFeedResult: lastFeed?.result ?? null,
+              lastEventCreatedAt: lastEvent?.createdAt ?? null,
+              lastEventType: lastEvent?.type ?? null,
+            });
 
             if (key !== lastStateKeyRef.current) {
               lastStateKeyRef.current = key;
 
               const payload = pruneUndefined({
                 ...core,
+                feed: inlineFeed,
+                events: inlineEvents,
                 updatedAt: Date.now()
               });
 
@@ -4211,8 +4286,8 @@ export function DemoStoreProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (newEventCount > 0) {
-        // 배열 끝에서부터 새로운 항목 가져오기
-        const newEntries = stateRef.current.events.slice(-newEventCount);
+        // events는 최신이 배열 앞쪽에 쌓이므로 앞에서부터 가져온다.
+        const newEntries = stateRef.current.events.slice(0, newEventCount);
         newEntries.forEach((entry, idx) => {
           const createdAt =
             typeof entry.createdAt === 'number' && Number.isFinite(entry.createdAt)

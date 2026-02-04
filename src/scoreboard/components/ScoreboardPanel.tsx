@@ -320,8 +320,23 @@ export default function ScoreboardPanel({
     const maxInning = Math.max(state.inning, liveLine.home.length, liveLine.away.length);
     const inningsHeader = Array.from({ length: Math.max(9, maxInning) }, (_, i) => i + 1);
 
-    const padInnings = (arr: number[]) =>
-      inningsHeader.map((_, idx) => (arr[idx] != null ? arr[idx] : '—'));
+    const isFinal = state.gameOver;
+    const completedInningsBySide: Record<'home' | 'away', number> = {
+      away: state.half === 'bottom' ? state.inning : Math.max(0, state.inning - 1),
+      home: Math.max(0, state.inning - 1),
+    };
+    const currentInningIdxBySide: Record<'home' | 'away', number | null> = {
+      away: !isFinal && state.half === 'top' ? state.inning - 1 : null,
+      home: !isFinal && state.half === 'bottom' ? state.inning - 1 : null,
+    };
+
+    const padInnings = (arr: number[], side: 'home' | 'away') =>
+      inningsHeader.map((_, idx) => {
+        if (isFinal) return arr[idx] != null ? arr[idx] : '—';
+        if (idx < completedInningsBySide[side]) return arr[idx] != null ? arr[idx] : 0;
+        if (currentInningIdxBySide[side] === idx) return arr[idx] != null ? arr[idx] : 0;
+        return '—';
+      });
 
     const totals = activeMatch?.postGame?.totals ?? {
       home: { runs: state.score.home, hits: liveHits.home, errors: liveErrors.home },
@@ -344,7 +359,7 @@ export default function ScoreboardPanel({
       runs: state.score[side],
       hits: totals?.[side]?.hits ?? '—',
       errors: totals?.[side]?.errors ?? '—',
-      innings: padInnings(lineScore?.[side]),
+      innings: padInnings(lineScore?.[side], side),
       color: side === 'home' ? '#f97316' : '#60a5fa',
     });
     return { innings, rows: [mk('away'), mk('home')] };
