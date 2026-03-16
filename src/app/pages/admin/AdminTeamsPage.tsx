@@ -1,5 +1,6 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 import { useContent } from '../../../shared/state/contentProvider';
+import type { GroupLetter } from '../../../shared/lib/teamGroups';
 
 const cardStyle: CSSProperties = {
   borderRadius: '16px',
@@ -21,6 +22,8 @@ const inputStyle: CSSProperties = {
 
 const labelStyle: CSSProperties = { color: '#cbd5e1', fontWeight: 800, fontSize: '13px', marginBottom: '6px', display: 'block' };
 
+const VALID_GROUPS = new Set<GroupLetter>(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']);
+
 export default function AdminTeamsPage() {
   const { content, updateContent } = useContent();
   const teams = content.teams;
@@ -32,7 +35,7 @@ export default function AdminTeamsPage() {
   const [pageTitle, setPageTitle] = useState(teams.pageTitle);
   const [pageDescription, setPageDescription] = useState(teams.pageDescription);
   const [pageNote, setPageNote] = useState(teams.pageNote);
-  const [entriesDraft, setEntriesDraft] = useState(teams.entries.map((entry) => entry.name).join('\n'));
+  const [entriesDraft, setEntriesDraft] = useState(teams.entries.map((entry) => `${entry.name} | ${entry.group}`).join('\n'));
 
   useEffect(() => {
     const syncDraft = () => {
@@ -40,7 +43,7 @@ export default function AdminTeamsPage() {
       setPageTitle(teams.pageTitle);
       setPageDescription(teams.pageDescription);
       setPageNote(teams.pageNote);
-      setEntriesDraft(teams.entries.map((entry) => entry.name).join('\n'));
+      setEntriesDraft(teams.entries.map((entry) => `${entry.name} | ${entry.group}`).join('\n'));
     };
     queueMicrotask(syncDraft);
   }, [teams]);
@@ -52,10 +55,17 @@ export default function AdminTeamsPage() {
       .split('\n')
       .map((line) => line.trim())
       .filter(Boolean)
-      .map((line) => ({ name: line }));
+      .map((line) => {
+        const [nameRaw, groupRaw] = line.split('|').map((v) => v.trim());
+        return { name: nameRaw, group: groupRaw as GroupLetter };
+      });
 
     if (entries.some((entry) => !entry.name)) {
       setError('팀명은 비어 있을 수 없습니다.');
+      return;
+    }
+    if (entries.some((entry) => !VALID_GROUPS.has(entry.group))) {
+      setError('조 문자는 A~H만 허용됩니다.');
       return;
     }
     const uniqueNames = new Set(entries.map((entry) => entry.name));
@@ -73,7 +83,7 @@ export default function AdminTeamsPage() {
         entries,
       },
     });
-    setStatus('참가팀 목록을 저장했습니다.');
+    setStatus('참가팀·조편성을 저장했습니다.');
   };
 
   return (
@@ -82,21 +92,21 @@ export default function AdminTeamsPage() {
       {error && <div style={{ ...cardStyle, borderColor: 'rgba(248,113,113,0.45)', color: '#fecaca', fontWeight: 800 }}>{error}</div>}
 
       <section style={cardStyle}>
-        <h3 style={{ margin: '0 0 12px', color: '#e2e8f0' }}>참가팀 편집</h3>
+        <h3 style={{ margin: '0 0 12px', color: '#e2e8f0' }}>참가팀 · 조편성 편집</h3>
         <div style={{ display: 'grid', gap: '10px' }}>
           <div><label style={labelStyle}>페이지 배지</label><input style={inputStyle} value={pageBadge} onChange={(e) => setPageBadge(e.target.value)} /></div>
           <div><label style={labelStyle}>페이지 제목</label><input style={inputStyle} value={pageTitle} onChange={(e) => setPageTitle(e.target.value)} /></div>
           <div><label style={labelStyle}>페이지 설명</label><textarea style={{ ...inputStyle, minHeight: '80px', fontFamily: 'inherit' }} value={pageDescription} onChange={(e) => setPageDescription(e.target.value)} /></div>
           <div><label style={labelStyle}>안내문</label><textarea style={{ ...inputStyle, minHeight: '70px', fontFamily: 'inherit' }} value={pageNote} onChange={(e) => setPageNote(e.target.value)} /></div>
           <div>
-            <label style={labelStyle}>팀 목록 (한 줄에 팀명 1개)</label>
+            <label style={labelStyle}>팀 목록 (팀명 | 조)</label>
             <textarea style={{ ...inputStyle, minHeight: '280px', fontFamily: 'inherit' }} value={entriesDraft} onChange={(e) => setEntriesDraft(e.target.value)} />
           </div>
         </div>
 
         <div style={{ marginTop: '12px' }}>
           <button type="button" onClick={saveTeams} style={{ ...inputStyle, width: 'auto', cursor: 'pointer', fontWeight: 800 }}>
-            팀 목록 저장
+            팀/조편성 저장
           </button>
         </div>
       </section>

@@ -7,39 +7,26 @@ import { useAdmin } from '../shared/auth/useAdmin';
 import { useDemoStore } from '../shared/state/demoStore';
 import { ContentProvider } from '../shared/state/contentProvider';
 
-const NOTIFICATION_PROMPT_KEY = 'homesteal:notificationPrompt:v1';
-const NOTIFICATION_PROMPT_SNOOZE_MS = 1000 * 60 * 60 * 24; // 24시간 동안 재등장 방지
-const NOTIFICATION_PROMPT_SNOOZE_WEEK_MS = NOTIFICATION_PROMPT_SNOOZE_MS * 7; // 1주일 동안 재등장 방지
 const MOBILE_NOTICE_KEY = 'homesteal:mobileNotice:v1';
 const MOBILE_NOTICE_SNOOZE_MS = 1000 * 60 * 60 * 24; // 모바일 팝업 24시간 스누즈
 
 export default function Layout() {
   const location = useLocation();
   const { user, logout, initializing } = useAuth();
-  const { isAdmin, roleLabel, roleDetail } = useAdmin();
+  const { isAdmin, canUseScorekeeper, roleLabel, roleDetail } = useAdmin();
   const { state } = useDemoStore();
-  const isLiveOverlay = location.pathname === '/live-overlay';
-  const isScoreboardText = location.pathname === '/scoreboard-text';
+  const isLiveOverlay = location.pathname.startsWith('/live-overlay');
+  const isScoreboardText = location.pathname.startsWith('/scoreboard-text');
   const headerInnerRef = useRef<HTMLDivElement>(null);
   const linkRefs = useRef<Record<string, HTMLAnchorElement | null>>({});
   const [previewMode, setPreviewMode] = useState<'desktop' | 'mobile'>(() =>
     typeof window !== 'undefined' && window.matchMedia('(max-width: 640px)').matches ? 'mobile' : 'desktop',
   );
-  const [showNotificationPrompt, setShowNotificationPrompt] = useState(false);
-  const [notificationRequesting, setNotificationRequesting] = useState(false);
-  const [notificationBlocked, setNotificationBlocked] = useState(false);
   const [showMobileNotice, setShowMobileNotice] = useState(false);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-preview-mode', previewMode);
   }, [previewMode]);
-
-  // 초기 진입 시(SSR 포함) 모바일 폭이면 모바일 모드로 강제 전환 (테블릿 이상은 데스크톱 유지)
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const isNarrowMobile = window.matchMedia('(max-width: 640px)').matches;
-    setPreviewMode(isNarrowMobile ? 'mobile' : 'desktop');
-  }, []);
 
   // 첫 방문 모바일 사용자에게 PC 최적화 안내
   useEffect(() => {
@@ -62,7 +49,8 @@ export default function Layout() {
     const now = Date.now();
     if (dismissedPermanently) return;
     if (now < snoozedUntil) return;
-    setShowMobileNotice(true);
+    const timer = window.setTimeout(() => setShowMobileNotice(true), 0);
+    return () => window.clearTimeout(timer);
   }, [isLiveOverlay]);
 
   const handleMobileNoticeConfirm = useCallback(() => {
@@ -93,133 +81,14 @@ export default function Layout() {
     setShowMobileNotice(false);
   }, []);
 
-  // 첫 방문 시에만 노출되는 경기 시작 알림 CTA (사용자 제스처로 권한 요청)
-  useEffect(() => {
-    if (typeof window === 'undefined' || typeof Notification === 'undefined') return;
-    if (isLiveOverlay) return; // 오버레이 뷰에서는 불필요
-
-    const now = Date.now();
-    const stored = window.localStorage.getItem(NOTIFICATION_PROMPT_KEY);
-    let snoozedUntil = 0;
-    let blockedSnoozedUntil = 0;
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored) as {
-          snoozedAt?: number;
-          snoozedUntil?: number;
-          blockedSnoozedUntil?: number;
-          permission?: NotificationPermission;
-        };
-        if (parsed.permission === 'granted') {
-          setShowNotificationPrompt(false);
-          setNotificationBlocked(false);
-          return;
-        }
-        if (typeof parsed.snoozedUntil === 'number') {
-          snoozedUntil = parsed.snoozedUntil;
-        } else if (typeof parsed.snoozedAt === 'number') {
-          // backward compatibility with previous single-day snooze
-          snoozedUntil = parsed.snoozedAt + NOTIFICATION_PROMPT_SNOOZE_MS;
-        }
-        if (typeof parsed.blockedSnoozedUntil === 'number') {
-          blockedSnoozedUntil = parsed.blockedSnoozedUntil;
-        }
-      } catch {
-        // ignore malformed cache
-      }
-    }
-
-    if (Notification.permission === 'granted') {
-      window.localStorage.setItem(NOTIFICATION_PROMPT_KEY, JSON.stringify({ permission: 'granted', updatedAt: now }));
-      setShowNotificationPrompt(false);
-      setNotificationBlocked(false);
-      return;
-    }
-
-    if (Notification.permission === 'denied') {
-      if (now < blockedSnoozedUntil) {
-        setNotificationBlocked(false);
-        setShowNotificationPrompt(false);
-        return;
-      }
-      window.localStorage.setItem(NOTIFICATION_PROMPT_KEY, JSON.stringify({ permission: 'denied', updatedAt: now }));
-      setNotificationBlocked(true);
-      setShowNotificationPrompt(false);
-      return;
-    }
-
-    if (now < snoozedUntil) {
-      setShowNotificationPrompt(false);
-      return;
-    }
-
-    setShowNotificationPrompt(true);
-    setNotificationBlocked(false);
-  }, [isLiveOverlay]);
-
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0 });
   }, [location.pathname]);
 
-  const handleRequestNotification = useCallback(async () => {
-    if (typeof window === 'undefined' || typeof Notification === 'undefined') return;
-    setNotificationRequesting(true);
-    try {
-      const result = await Notification.requestPermission();
-      const now = Date.now();
-      const payload: { permission: NotificationPermission; updatedAt: number; snoozedUntil?: number } = {
-        permission: result,
-        updatedAt: now,
-      };
-      if (result === 'default') payload.snoozedUntil = now + NOTIFICATION_PROMPT_SNOOZE_MS; // 사용자가 닫은 경우 24시간 백오프
-      window.localStorage.setItem(NOTIFICATION_PROMPT_KEY, JSON.stringify(payload));
-      setNotificationBlocked(result === 'denied');
-      setShowNotificationPrompt(false);
-    } catch {
-      // ignore
-    } finally {
-      setNotificationRequesting(false);
-    }
-  }, []);
-
-  const handleSnoozeNotification = useCallback((durationMs: number = NOTIFICATION_PROMPT_SNOOZE_MS) => {
-    if (typeof window === 'undefined') return;
-    const now = Date.now();
-    window.localStorage.setItem(
-      NOTIFICATION_PROMPT_KEY,
-      JSON.stringify({ permission: 'default', updatedAt: now, snoozedUntil: now + durationMs }),
-    );
-    setShowNotificationPrompt(false);
-  }, []);
-
-  const handleSnoozeBlocked = useCallback((durationMs: number = NOTIFICATION_PROMPT_SNOOZE_WEEK_MS) => {
-    if (typeof window === 'undefined') return;
-    const now = Date.now();
-    window.localStorage.setItem(
-      NOTIFICATION_PROMPT_KEY,
-      JSON.stringify({ permission: 'denied', updatedAt: now, blockedSnoozedUntil: now + durationMs }),
-    );
-    setNotificationBlocked(false);
-    setShowNotificationPrompt(false);
-  }, []);
-
-  useEffect(() => {
-    const syncPermission = () => {
-      if (typeof window === 'undefined' || typeof Notification === 'undefined') return;
-      if (Notification.permission === 'granted') {
-        const now = Date.now();
-        window.localStorage.setItem(NOTIFICATION_PROMPT_KEY, JSON.stringify({ permission: 'granted', updatedAt: now }));
-        setNotificationBlocked(false);
-        setShowNotificationPrompt(false);
-      }
-    };
-    window.addEventListener('focus', syncPermission);
-    return () => window.removeEventListener('focus', syncPermission);
-  }, []);
-
   const activeMatch = useMemo(() => state.matches.find((m) => m.id === state.activeMatchId), [state.matches, state.activeMatchId]);
   const hasLiveOverlay = Boolean((activeMatch?.liveVideoUrl || '').trim());
   const isMobileHeader = previewMode === 'mobile';
+  const scorekeeperPath = state.activeMatchId ? `/scorekeeper/${state.activeMatchId}` : '/scorekeeper';
 
   const navItems = useMemo(
     () => [
@@ -242,11 +111,11 @@ export default function Layout() {
         ],
       },
       {
-        path: '/records',
+        path: '/records?tab=batters',
         label: '기록',
         children: [
-          { path: '/records/pitchers', label: '투수 기록' },
-          { path: '/records/batters', label: '타자 기록' },
+          { path: '/records?tab=pitchers', label: '투수 기록' },
+          { path: '/records?tab=batters', label: '타자 기록' },
         ],
       },
       {
@@ -258,17 +127,17 @@ export default function Layout() {
         ],
       },
       {
-        path: '/standings',
+        path: '/records?tab=standings',
         label: '순위',
-        children: [{ path: '/standings/power-ranking', label: '파워랭킹' }],
       },
-      // 기록원: 항상 보이지만 비관리자는 클릭 시 안내 버블만 노출
-      { path: '/scorekeeper', label: '기록원', requiresAdmin: true, showWhenBlocked: true },
+      // 기록원: 항상 보이지만 비권한 사용자는 클릭 시 안내 버블만 노출
+      { path: scorekeeperPath, label: '기록원', requiresScorekeeper: true, showWhenBlocked: true },
       { path: '/manual', label: '사용설명서' },
     ],
-    [],
+    [scorekeeperPath],
   );
   const [hoveredMenu, setHoveredMenu] = useState<string | null>(null);
+  const [hoveredChildMenu, setHoveredChildMenu] = useState<string | null>(null);
   const [tooltip, setTooltip] = useState<{ text: string; x: number; y: number } | null>(null);
 
   const filteredNavItems = useMemo(
@@ -277,10 +146,40 @@ export default function Layout() {
         if (item.requiresAdmin && !isAdmin) {
           return item.showWhenBlocked === true;
         }
+        if (item.requiresScorekeeper && !canUseScorekeeper) {
+          return item.showWhenBlocked === true;
+        }
         return true;
       }),
-    [navItems, isAdmin],
+    [navItems, isAdmin, canUseScorekeeper],
   );
+
+  const isRouteActive = useCallback(
+    (target: string, options?: { prefix?: boolean }) => {
+      const [targetPathname, targetSearch = ''] = target.split('?');
+      const prefix = options?.prefix === true;
+      const pathnameMatches = prefix
+        ? location.pathname === targetPathname || location.pathname.startsWith(`${targetPathname}/`)
+        : location.pathname === targetPathname;
+      if (!pathnameMatches) return false;
+      if (!targetSearch) return true;
+
+      const expected = new URLSearchParams(targetSearch);
+      const current = new URLSearchParams(location.search);
+      for (const [key, value] of expected.entries()) {
+        if (current.get(key) !== value) return false;
+      }
+      return true;
+    },
+    [location.pathname, location.search],
+  );
+
+  const isStandingsView = useMemo(() => {
+    if (location.pathname === '/standings') return true;
+    if (location.pathname !== '/records') return false;
+    const tabParam = new URLSearchParams(location.search).get('tab');
+    return tabParam == null || tabParam === '' || tabParam === 'standings';
+  }, [location.pathname, location.search]);
 
   const activeParentPath = useMemo(() => {
     if (hoveredMenu) {
@@ -288,17 +187,27 @@ export default function Layout() {
       if (hoveredHasChildren) return hoveredMenu;
     }
 
+    if (isStandingsView) return '/records?tab=standings';
+    if (location.pathname.startsWith('/records')) return '/records?tab=batters';
+    if (location.pathname === '/rules' || location.pathname.startsWith('/intro')) return '/intro';
+    if (location.pathname.startsWith('/schedule')) return '/schedule';
+    if (location.pathname.startsWith('/community')) return '/community';
+    if (location.pathname.startsWith('/scorekeeper')) return scorekeeperPath;
+    if (location.pathname === '/manual') return '/manual';
+
     const matched = filteredNavItems.find((item) => {
       // External link check
       if ((item as { isExternal?: boolean }).isExternal) return false;
 
-      if (item.children?.some((child) => location.pathname === child.path || location.pathname.startsWith(child.path))) return true;
-      if (item.children && location.pathname === item.path) return true; // 부모 경로 자체를 방문했을 때도 유지
-      return false;
+      if (item.children?.some((child) => isRouteActive(child.path, { prefix: Boolean((child as { matchPrefix?: boolean }).matchPrefix) }))) {
+        return true;
+      }
+      if (item.children && isRouteActive(item.path)) return true;
+      return isRouteActive(item.path);
     });
 
     return matched?.path ?? null;
-  }, [hoveredMenu, location.pathname, filteredNavItems]);
+  }, [hoveredMenu, filteredNavItems, isStandingsView, location.pathname, scorekeeperPath, isRouteActive]);
 
   const activeChildren = useMemo(() => {
     const parent = filteredNavItems.find((item) => item.path === activeParentPath);
@@ -309,7 +218,6 @@ export default function Layout() {
 
   useEffect(() => {
     if (!showSubnav || !activeParentPath) {
-      setSubnavAnchor(null);
       return;
     }
 
@@ -336,7 +244,10 @@ export default function Layout() {
           <div
             className="app-header__inner"
             ref={headerInnerRef}
-            onMouseLeave={() => setHoveredMenu(null)}
+            onMouseLeave={() => {
+              setHoveredMenu(null);
+              setHoveredChildMenu(null);
+            }}
             style={{
               position: 'relative',
               alignItems: 'center',
@@ -406,16 +317,16 @@ export default function Layout() {
               >
                 <div className="nav-scroll__rail">
                   {filteredNavItems.map((item) => {
-                    const isActive = location.pathname === item.path || activeParentPath === item.path;
+                    const isActive = activeParentPath === item.path || isRouteActive(item.path);
                     const isHovering = hoveredMenu === item.path;
-                    const blocked = item.requiresAdmin && !isAdmin;
+                    const blocked = (item.requiresAdmin && !isAdmin) || (item.requiresScorekeeper && !canUseScorekeeper);
                     const isExternal = (item as { isExternal?: boolean }).isExternal;
 
                     const handleBlockedHover = (el: HTMLAnchorElement | null) => {
                       if (!blocked || !el) return;
                       const rect = el.getBoundingClientRect();
                       setTooltip({
-                        text: '관리자 로그인이 필요합니다',
+                        text: item.requiresScorekeeper ? '기록원/관리자 권한이 필요합니다' : '관리자 로그인이 필요합니다',
                         x: rect.left + rect.width / 2,
                         y: rect.bottom,
                       });
@@ -446,9 +357,9 @@ export default function Layout() {
                           }}
                           onMouseEnter={() => {
                             setHoveredMenu(item.path);
+                            setHoveredChildMenu(null);
                           }}
                           onMouseLeave={() => {
-                            setHoveredMenu(null);
                             setTooltip(null);
                           }}
                           onFocus={() => {
@@ -471,14 +382,15 @@ export default function Layout() {
                         }}
                         onMouseEnter={() => {
                           setHoveredMenu(item.path);
+                          setHoveredChildMenu(null);
                           handleBlockedHover(linkRefs.current[item.path]);
                         }}
                         onMouseLeave={() => {
-                          setHoveredMenu(null);
                           setTooltip(null);
                         }}
                         onFocus={() => {
                           setHoveredMenu(item.path);
+                          setHoveredChildMenu(null);
                           handleBlockedHover(linkRefs.current[item.path]);
                         }}
                         onBlur={() => setTooltip(null)}
@@ -488,7 +400,10 @@ export default function Layout() {
                             handleBlockedHover(linkRefs.current[item.path]);
                             return;
                           }
-                          if (item.children) setHoveredMenu(item.path);
+                          if (item.children) {
+                            setHoveredMenu(item.path);
+                            setHoveredChildMenu(null);
+                          }
                         }}
                       >
                         {item.label}
@@ -708,8 +623,13 @@ export default function Layout() {
             </div>
 
             <div
-              onMouseEnter={() => activeParentPath && setHoveredMenu(activeParentPath)}
-              onMouseLeave={() => setHoveredMenu(null)}
+              onMouseEnter={() => {
+                if (activeParentPath) setHoveredMenu(activeParentPath);
+              }}
+              onMouseLeave={() => {
+                setHoveredMenu(null);
+                setHoveredChildMenu(null);
+              }}
               style={{
                 position: 'absolute',
                 top: isMobileHeader ? 'calc(var(--header-height) + 24px)' : 'calc(var(--header-height) - 6px)',
@@ -743,8 +663,11 @@ export default function Layout() {
                 }}
               >
                 {activeChildren.map((child) => {
-                  const isActiveChild = location.pathname === child.path;
-                  const isHoveringChild = hoveredMenu === child.path;
+                  const isActiveChild = isRouteActive(
+                    child.path,
+                    { prefix: Boolean((child as { matchPrefix?: boolean }).matchPrefix) },
+                  );
+                  const isHoveringChild = hoveredChildMenu === child.path;
                   return (
                     <Link
                       key={child.path}
@@ -762,9 +685,16 @@ export default function Layout() {
                         whiteSpace: 'nowrap',
                         transform: isActiveChild ? 'translateY(-1px)' : 'translateY(0)',
                       }}
-                      onMouseEnter={() => setHoveredMenu(child.path)}
-                      onMouseLeave={() => setHoveredMenu(null)}
-                      onFocus={() => setHoveredMenu(child.path)}
+                      onMouseEnter={() => {
+                        if (activeParentPath) setHoveredMenu(activeParentPath);
+                        setHoveredChildMenu(child.path);
+                      }}
+                      onMouseLeave={() => setHoveredChildMenu(null)}
+                      onFocus={() => {
+                        if (activeParentPath) setHoveredMenu(activeParentPath);
+                        setHoveredChildMenu(child.path);
+                      }}
+                      onBlur={() => setHoveredChildMenu(null)}
                     >
                       {child.label}
                     </Link>
@@ -850,153 +780,6 @@ export default function Layout() {
                 }}
               >
                 다시 보지 않기
-              </button>
-            </div>
-          </div>
-        )}
-
-        {!isLiveOverlay && showNotificationPrompt && typeof Notification !== 'undefined' && (
-          <div
-            style={{
-              display: 'flex',
-              gap: '14px',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              flexWrap: 'wrap',
-              padding: '16px 18px',
-              marginBottom: '18px',
-              borderRadius: '18px',
-              border: '1px solid rgba(96,165,250,0.28)',
-              background: 'linear-gradient(120deg, rgba(59,130,246,0.16), rgba(215,31,41,0.16))',
-              boxShadow: '0 16px 40px rgba(0,0,0,0.35)',
-            }}
-          >
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flex: 1, minWidth: '220px' }}>
-              <span
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  fontSize: '13px',
-                  fontWeight: 800,
-                  letterSpacing: '0.04em',
-                  color: '#cbd5e1',
-                  textTransform: 'uppercase',
-                }}
-              >
-                <span style={{ fontSize: '18px' }}>🔔</span>
-                경기 시작 알림
-              </span>
-              <div style={{ fontSize: '15px', fontWeight: 800, color: '#e2e8f0' }}>
-                첫 방문이라면 &ldquo;알림 허용&rdquo;을 눌러 경기 시작 푸시를 받아보세요.
-              </div>
-              <div style={{ fontSize: '13px', color: '#cbd5e1', lineHeight: 1.5 }}>
-                버튼을 누르는 사용자 제스처가 있어야 크롬의 조용한 알림 모드에서도 권한 팝업이 바로 뜹니다. 거부하거나 닫으면 24시간,
-                &ldquo;일주일 뒤 묻기&rdquo;를 누르면 7일 동안 다시 묻지 않아요.
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                onClick={handleRequestNotification}
-                disabled={notificationRequesting}
-                style={{
-                  background: 'linear-gradient(120deg, #d71f29, #ef4444)',
-                  color: '#0b0f1a',
-                  padding: '12px 16px',
-                  fontWeight: 900,
-                  fontSize: '14px',
-                  minWidth: '140px',
-                  opacity: notificationRequesting ? 0.75 : 1,
-                  cursor: notificationRequesting ? 'not-allowed' : 'pointer',
-                }}
-              >
-                {notificationRequesting ? '요청 중...' : '알림 허용'}
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSnoozeNotification(NOTIFICATION_PROMPT_SNOOZE_MS)}
-                style={{
-                  background: 'rgba(15,23,42,0.65)',
-                  color: '#cbd5e1',
-                  border: '1px solid rgba(148,163,184,0.45)',
-                  padding: '12px 14px',
-                  fontWeight: 800,
-                  fontSize: '13px',
-                }}
-              >
-                하루 뒤 묻기
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSnoozeNotification(NOTIFICATION_PROMPT_SNOOZE_WEEK_MS)}
-                style={{
-                  background: 'rgba(15,23,42,0.65)',
-                  color: '#cbd5e1',
-                  border: '1px solid rgba(148,163,184,0.45)',
-                  padding: '12px 14px',
-                  fontWeight: 800,
-                  fontSize: '13px',
-                }}
-              >
-                일주일 뒤 묻기
-              </button>
-            </div>
-          </div>
-        )}
-
-        {!isLiveOverlay && notificationBlocked && (
-          <div
-            style={{
-              display: 'flex',
-              gap: '12px',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              flexWrap: 'wrap',
-              padding: '14px 16px',
-              marginBottom: '18px',
-              borderRadius: '14px',
-              border: '1px solid rgba(248,113,113,0.5)',
-              background: 'linear-gradient(120deg, rgba(248,113,113,0.12), rgba(248,113,113,0.22))',
-              color: '#fecdd3',
-            }}
-          >
-            <div style={{ flex: 1, minWidth: '220px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <div style={{ fontWeight: 800, fontSize: '14px' }}>알림이 브라우저에서 차단되어 있어 경기 시작 알림을 보낼 수 없습니다.</div>
-              <div style={{ fontSize: '13px', color: '#ffe4e6' }}>
-                주소창 왼쪽의 자물쇠(🔒) 또는 종(🔔) 아이콘 → 알림 → &ldquo;허용&rdquo;으로 변경한 뒤 새로고침 해주세요.
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                onClick={() => {
-                  setNotificationBlocked(false);
-                  if (typeof Notification !== 'undefined' && Notification.permission === 'default') setShowNotificationPrompt(true);
-                }}
-                style={{
-                  background: 'rgba(255,255,255,0.12)',
-                  color: '#0b1220',
-                  fontWeight: 900,
-                  fontSize: '13px',
-                  padding: '10px 14px',
-                }}
-              >
-                설정 완료
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSnoozeBlocked(NOTIFICATION_PROMPT_SNOOZE_WEEK_MS)}
-                style={{
-                  background: 'rgba(15,23,42,0.7)',
-                  color: '#ffe4e6',
-                  border: '1px solid rgba(252,165,165,0.55)',
-                  fontWeight: 800,
-                  fontSize: '13px',
-                  padding: '10px 14px',
-                }}
-              >
-                일주일 동안 보지 않기
               </button>
             </div>
           </div>
