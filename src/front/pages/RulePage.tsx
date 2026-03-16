@@ -7,6 +7,11 @@ export default function RulePage() {
   const { content } = useContent();
   const { brand, rules } = content;
   const pageRef = useRef<HTMLDivElement>(null);
+  const rulesDocUrl = brand.rulesPdfPath;
+  const rulesEmbedUrl =
+    rulesDocUrl.includes('docs.google.com/document/') && !rulesDocUrl.includes('embedded=true')
+      ? `${rulesDocUrl}${rulesDocUrl.includes('?') ? '&' : '?'}embedded=true`
+      : rulesDocUrl;
 
   useEffect(() => {
     const ctx = gsap.context(() => {
@@ -50,7 +55,7 @@ export default function RulePage() {
         <p style={{ margin: 0, color: '#e2e8f0', lineHeight: 1.7 }}>{rules.headerDescription}</p>
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           <a
-            href={brand.rulesPdfPath}
+            href={rulesDocUrl}
             target="_blank"
             rel="noreferrer"
             style={{
@@ -62,7 +67,7 @@ export default function RulePage() {
               fontWeight: 900,
             }}
           >
-            규정 PDF 원문 보기
+            규정 원문 보기
           </a>
           <Link
             to="/intro"
@@ -92,11 +97,11 @@ export default function RulePage() {
         }}
       >
         <p style={{ margin: 0, color: '#cbd5e1', fontWeight: 700 }}>
-          아래 뷰어에 대학야구교류전 규정 PDF 원문 전체를 그대로 표시합니다.
+          아래 뷰어에 대학야구교류전 규정 원문 전체를 그대로 표시합니다.
         </p>
         <iframe
-          src={brand.rulesPdfPath}
-          title="대학야구교류전 규정 PDF"
+          src={rulesEmbedUrl}
+          title="대학야구교류전 규정 원문"
           style={{
             width: '100%',
             height: '78vh',

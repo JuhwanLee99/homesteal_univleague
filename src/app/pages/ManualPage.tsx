@@ -120,7 +120,7 @@ export default function ManualPage() {
           아래 아이콘을 누르면 운영 상세 문서를 새 탭으로 열 수 있고, 페이지 내에서도 바로 확인할 수 있습니다.
         </p>
         <a
-          href="https://docs.google.com/document/d/e/2PACX-1vRYQNkS6wuqoYWokWN_rnPpmZuWLHcNyn_j5K5Vhw3g8voduO20VMJYFH_3FTjW9Whgk7nxywV8ps_9/pub"
+          href="https://docs.google.com/document/d/e/2PACX-1vTLLfn8m4DqL659xzdJxJYMOCIfCl0dy-7X-dl4tDseIstuZSi4iVE2fHOscQyvbzz2zGA6-re5ZEMc/pub"
           target="_blank"
           rel="noreferrer"
           style={{
@@ -141,7 +141,7 @@ export default function ManualPage() {
           📄 문서 보기
         </a>
         <iframe
-          src="https://docs.google.com/document/d/e/2PACX-1vRYQNkS6wuqoYWokWN_rnPpmZuWLHcNyn_j5K5Vhw3g8voduO20VMJYFH_3FTjW9Whgk7nxywV8ps_9/pub?embedded=true"
+          src="https://docs.google.com/document/d/e/2PACX-1vTLLfn8m4DqL659xzdJxJYMOCIfCl0dy-7X-dl4tDseIstuZSi4iVE2fHOscQyvbzz2zGA6-re5ZEMc/pub?embedded=true"
           title="기록원/운영 상세 문서"
           style={{
             width: '100%',

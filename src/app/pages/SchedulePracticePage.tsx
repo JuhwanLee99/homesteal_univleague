@@ -105,7 +105,6 @@ export default function SchedulePracticePage() {
       venue: form.venue.trim() || 'HOMESTEAL 연습구장',
       status: form.status,
       recordMode: 'practice',
-      phase: 'PRACTICE',
       notes: form.notes.trim() || undefined,
       lineups: {
         home: makePracticeLineup(),
@@ -420,7 +419,7 @@ export default function SchedulePracticePage() {
                       type="button"
                       onClick={() => {
                         actions.selectMatch(match.id);
-                        navigate('/scoreboard-text');
+                        navigate(`/scoreboard-text/${match.id}`);
                       }}
                       style={{
                         padding: '8px 10px',
@@ -438,7 +437,7 @@ export default function SchedulePracticePage() {
                       type="button"
                       onClick={() => {
                         actions.selectMatch(match.id);
-                        navigate('/scorekeeper');
+                        navigate(`/scorekeeper/${match.id}`);
                       }}
                       style={{
                         padding: '8px 10px',
