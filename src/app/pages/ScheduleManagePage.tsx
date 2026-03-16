@@ -1,7 +1,8 @@
 import type React from 'react';
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useDemoStore } from '../../shared/state/demoStore';
-import type { MatchStatus, MatchSchedule, MatchPhase, PlayerSlot } from '../../shared/state/demoStore';
+import type { MatchScoreInputMode, MatchStatus, MatchSchedule, PlayerSlot } from '../../shared/state/demoStore';
 import type { LeagueDivision } from '../../shared/types';
 import { TEAMS } from '../../shared/lib/mockData';
 
@@ -15,6 +16,11 @@ const inputStyle: React.CSSProperties = {
 
 const divisionColor = (teamId?: string) =>
   TEAMS.find((t) => t.id === teamId)?.logoColor ?? '#94a3b8';
+
+const normalizeMatchDivision = (division?: LeagueDivision): 'LEAGUE' | 'PLAYOFF' => {
+  if (division === 'PLAYOFF' || division === 'EUTTEUM' || division === 'BEOGEUM') return 'PLAYOFF';
+  return 'LEAGUE';
+};
 
 const statusText: Record<MatchStatus, string> = {
   scheduled: '예정',
@@ -43,6 +49,17 @@ const formatRemaining = (purgeAt: number) => {
   if (days > 0) return `${days}일 ${hours}시간 후 삭제`;
   const minutes = Math.floor((diff / (1000 * 60)) % 60);
   return `${hours}시간 ${minutes}분 후 삭제`;
+};
+
+const buildMatchId = (startTime: string, homeTeamName: string, awayTeamName: string) => {
+  const dateObj = new Date(startTime);
+  const yyyy = dateObj.getFullYear();
+  const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+  const dd = String(dateObj.getDate()).padStart(2, '0');
+  const cleanName = (name: string) => name.trim().replace(/\s+/g, '');
+  const home = cleanName(homeTeamName || 'Home');
+  const away = cleanName(awayTeamName || 'Away');
+  return `${yyyy}${mm}${dd}-${home}-${away}`;
 };
 
 // 더미 라인업 생성 (더미 일정 전용)
@@ -92,6 +109,7 @@ const generateDummyBench = (): PlayerSlot[] => {
 
 export default function ScheduleManagePage() {
   const { state, actions } = useDemoStore();
+  const navigate = useNavigate();
   const [showTrash, setShowTrash] = useState(false);
 
   const activeMatches = useMemo(() => state.matches.filter((m) => !m.deleted), [state.matches]);
@@ -106,29 +124,40 @@ export default function ScheduleManagePage() {
     const teams = TEAMS.slice().sort(() => Math.random() - 0.5);
     const [home, away] = teams.slice(0, 2);
     const start = new Date(Date.now() + 1000 * 60 * 60 * (Math.floor(Math.random() * 96) + 12));
+    const startIso = start.toISOString();
+    const matchId = buildMatchId(startIso, home.name, away.name);
+    const lineups = {
+      home: generateDummyLineup(),
+      away: generateDummyLineup(),
+    };
+    const benches = {
+      home: generateDummyBench(),
+      away: generateDummyBench(),
+    };
     const match: MatchSchedule = {
-      id: `mock-${Date.now()}`,
+      id: matchId,
       homeTeamId: home.id,
       awayTeamId: away.id,
       homeTeamName: home.name,
       awayTeamName: away.name,
-      phase: 'REGULAR',
-      division: home.division === away.division ? home.division : undefined,
-      startTime: start.toISOString(),
+      division: 'LEAGUE',
+      startTime: startIso,
       venue: 'HOMESTEAL 임시구장',
       status: 'scheduled',
+      scoreInputMode: 'live',
       notes: '빠른 더미 등록',
+      lineupPublic: false,
       // 더미 라인업 추가
-      lineups: {
-        home: generateDummyLineup(),
-        away: generateDummyLineup(),
-      },
-      benches: {
-        home: generateDummyBench(),
-        away: generateDummyBench(),
-      },
+      lineups,
+      benches,
     };
     actions.addMatch(match);
+    actions.saveMatchLineups(matchId, lineups, benches);
+  };
+
+  const openScorekeeperForMatch = (matchId: string) => {
+    actions.selectMatch(matchId);
+    navigate(`/scorekeeper/${matchId}`);
   };
 
   return (
@@ -234,9 +263,23 @@ export default function ScheduleManagePage() {
                   <div style={{ display: 'grid', gap: '6px' }}>
                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                       <span style={{ width: '10px', height: '10px', borderRadius: '999px', background: color }} />
-                      <span style={{ fontWeight: 800, color: '#e2e8f0' }}>
+                      <button
+                        type="button"
+                        onClick={() => openScorekeeperForMatch(match.id)}
+                        style={{
+                          border: 'none',
+                          background: 'transparent',
+                          padding: 0,
+                          margin: 0,
+                          fontWeight: 800,
+                          color: '#e2e8f0',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                        }}
+                        title="기록원 페이지로 이동"
+                      >
                         {match.awayTeamName} vs {match.homeTeamName}
-                      </span>
+                      </button>
                       <span
                         style={{
                           padding: '2px 8px',
@@ -249,6 +292,20 @@ export default function ScheduleManagePage() {
                       >
                         {statusText[match.status]}
                       </span>
+                      {(match.scoreInputMode ?? 'live') === 'manual' ? (
+                        <span
+                          style={{
+                            padding: '2px 8px',
+                            borderRadius: '999px',
+                            background: 'rgba(56,189,248,0.14)',
+                            color: '#67e8f9',
+                            fontWeight: 800,
+                            fontSize: '11px',
+                          }}
+                        >
+                          수기 입력
+                        </span>
+                      ) : null}
                     </div>
                     <div style={{ display: 'flex', gap: '8px', color: '#94a3b8', fontSize: '12px', flexWrap: 'wrap' }}>
                       <span>{new Date(match.startTime).toLocaleString('ko-KR')}</span>
@@ -257,24 +314,10 @@ export default function ScheduleManagePage() {
                   </div>
                   <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'center' }}>
                     <select
-                      value={match.phase ?? ((match.recordMode ?? 'official') === 'practice' ? 'PRACTICE' : 'REGULAR')}
-                      onChange={(e) => actions.updateMatch(match.id, { phase: e.target.value as MatchPhase })}
-                      style={{
-                        ...inputStyle,
-                        width: '130px',
-                        padding: '8px 10px',
-                        background: 'rgba(255,255,255,0.06)',
-                      }}
-                    >
-                      <option value="REGULAR">단계: 정규리그</option>
-                      <option value="POSTSEASON">단계: 포스트시즌</option>
-                      <option value="PRACTICE">단계: 연습경기</option>
-                    </select>
-                    <select
-                      value={match.division ?? 'auto'}
+                      value={normalizeMatchDivision(match.division)}
                       onChange={(e) =>
                         actions.updateMatch(match.id, {
-                          division: e.target.value === 'auto' ? undefined : (e.target.value as LeagueDivision),
+                          division: e.target.value as LeagueDivision,
                         })
                       }
                       style={{
@@ -284,9 +327,8 @@ export default function ScheduleManagePage() {
                         background: 'rgba(255,255,255,0.06)',
                       }}
                     >
-                      <option value="auto">구분: 자동</option>
-                      <option value="EUTTEUM">으뜸</option>
-                      <option value="BEOGEUM">버금</option>
+                      <option value="LEAGUE">리그</option>
+                      <option value="PLAYOFF">플레이오프</option>
                     </select>
                     {(['scheduled', 'inProgress', 'completed', 'canceled'] as MatchStatus[]).map((status) => (
                       <button
@@ -304,6 +346,30 @@ export default function ScheduleManagePage() {
                         }}
                       >
                         {statusText[status]}
+                      </button>
+                    ))}
+                    {(['live', 'manual'] as MatchScoreInputMode[]).map((mode) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        onClick={() => actions.updateMatch(match.id, { scoreInputMode: mode })}
+                        style={{
+                          padding: '8px 10px',
+                          borderRadius: '10px',
+                          border:
+                            (match.scoreInputMode ?? 'live') === mode
+                              ? '1px solid #38bdf8'
+                              : '1px solid rgba(148,163,184,0.35)',
+                          background:
+                            (match.scoreInputMode ?? 'live') === mode
+                              ? 'rgba(56,189,248,0.14)'
+                              : 'rgba(255,255,255,0.04)',
+                          color: (match.scoreInputMode ?? 'live') === mode ? '#67e8f9' : '#cbd5e1',
+                          fontWeight: 800,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {mode === 'manual' ? '수기 입력' : '실시간 입력'}
                       </button>
                     ))}
                     <button
@@ -329,7 +395,7 @@ export default function ScheduleManagePage() {
                 <div
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: '130px 130px 190px 120px 1fr 1fr 1fr',
+                    gridTemplateColumns: '130px 130px 190px 120px 150px 1fr 1fr 1fr',
                     gap: '8px',
                     padding: '8px',
                     borderRadius: '10px',
@@ -367,6 +433,14 @@ export default function ScheduleManagePage() {
                     style={inputStyle}
                     onBlur={(e) => actions.updateMatch(match.id, { venue: e.target.value })}
                   />
+                  <select
+                    defaultValue={match.scoreInputMode ?? 'live'}
+                    style={inputStyle}
+                    onChange={(e) => actions.updateMatch(match.id, { scoreInputMode: e.target.value as MatchScoreInputMode })}
+                  >
+                    <option value="live">실시간 입력</option>
+                    <option value="manual">수기 입력</option>
+                  </select>
                   <input
                     type="number"
                     min={0}
@@ -424,9 +498,23 @@ export default function ScheduleManagePage() {
                 gap: '6px',
               }}
             >
-              <span style={{ fontWeight: 800, color: '#e2e8f0' }}>
+              <button
+                type="button"
+                onClick={() => openScorekeeperForMatch(match.id)}
+                style={{
+                  border: 'none',
+                  background: 'transparent',
+                  padding: 0,
+                  margin: 0,
+                  fontWeight: 800,
+                  color: '#e2e8f0',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                }}
+                title="기록원 페이지로 이동"
+              >
                 {match.awayTeamName} vs {match.homeTeamName}
-              </span>
+              </button>
               <input
                 defaultValue={match.notes ?? ''}
                 placeholder="메모를 입력하세요"
