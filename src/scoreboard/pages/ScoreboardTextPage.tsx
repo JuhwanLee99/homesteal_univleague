@@ -1708,7 +1708,19 @@ function eventLookupKey(payload: { inning: number; half: Half; order: number; pi
 function formatErrorDetail(error: PlayEvent['error']) {
   if (!error) return '';
   if (typeof error === 'string') return error.trim();
-  const parts = [error.errorType, error.fielderPos, error.context]
+  const extraCalls = error.extraCalls?.length
+    ? error.extraCalls
+      .map((call) => {
+        const callLabel = call.type === 'runner_obstruction' ? '주루 방해(수비)' : '주자 수비방해';
+        const outcome =
+          call.outcome == null
+            ? ''
+            : `:${typeof call.outcome === 'number' ? (call.outcome >= 4 ? '홈(득점)' : `${call.outcome}루`) : formatRunnerOutcomeLabel(call.outcome)}`;
+        return `${callLabel}(${call.base + 1}루${outcome})`;
+      })
+      .join(' / ')
+    : '';
+  const parts = [error.errorType, error.fielderPos, error.context, extraCalls]
     .filter((part): part is string => typeof part === 'string' && part.trim().length > 0)
     .map((part) => part.trim());
   return parts.join(' · ');
@@ -2841,11 +2853,33 @@ function formatRunnerNotes(runners: string[]) {
 function formatErrorSummary(error?: ErrorDetails | string | null) {
   if (!error) return '-';
   if (typeof error === 'string') return error;
-  const context = error.context ? ` · ${error.context}` : '';
-  return `${error.errorType} · ${error.fielderPos}${context}`;
+  const details: string[] = [];
+  const context = error.context?.trim();
+  if (context) details.push(context);
+  const batted = formatBattedBallDetails(error.battedBall);
+  if (batted !== '-') details.push(`타구 ${batted}`);
+  if (error.extraCalls?.length) {
+    const calls = error.extraCalls
+      .map((call) => {
+        const callLabel = call.type === 'runner_obstruction' ? '주루 방해(수비)' : '주자 수비방해';
+        const base = `${call.base + 1}루`;
+        const outcome =
+          call.outcome == null
+            ? ''
+            : `:${typeof call.outcome === 'number' ? (call.outcome >= 4 ? '홈(득점)' : `${call.outcome}루`) : formatRunnerOutcomeLabel(call.outcome)}`;
+        return `${callLabel}(${base}${outcome})`;
+      })
+      .join(' / ');
+    if (calls) details.push(calls);
+  }
+  return details.length
+    ? `${error.errorType} · ${error.fielderPos} · ${details.join(' · ')}`
+    : `${error.errorType} · ${error.fielderPos}`;
 }
 
-function formatErrorField(error: ErrorDetails | string | null | undefined, field: Exclude<keyof ErrorDetails, 'advanceResults'>) {
+type ErrorSummaryField = 'fielderPos' | 'errorType' | 'context';
+
+function formatErrorField(error: ErrorDetails | string | null | undefined, field: ErrorSummaryField) {
   if (!error || typeof error === 'string') return '-';
   return error[field] || '-';
 }
@@ -2907,8 +2941,18 @@ function classifyKboResult(event: PlayEvent) {
   if (event.type === 'hbp' || normalized.includes('몸에맞는공')) return 'HP';
   if (event.type === 'sac' || normalized.includes('희생')) return 'SAC';
   if (event.type === 'error' || normalized.includes('실책')) return 'E';
-  if (normalized.includes('병살')) return 'GDP';
-  if (normalized.includes('삼진')) return 'K';
+  if (normalized.includes('병살')) {
+    if (event.dpRoute && event.dpRoute.length > 0) {
+      return `GDP(${event.dpRoute.join('-')})`;
+    }
+    return 'GDP';
+  }
+  if (normalized.includes('삼진')) {
+    if (event.strikeType === 'looking' || normalized.includes('루킹')) {
+      return 'Kc';
+    }
+    return 'K';
+  }
   if (event.type === 'steal') return 'SB';
   if (event.type === 'steal_fail') return 'CS';
   if (event.type === 'runner_out') return 'RUN OUT';

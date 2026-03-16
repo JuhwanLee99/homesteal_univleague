@@ -6862,7 +6862,7 @@ function TeamEditor({
     }
 
     return result;
-  }, [lineup, practiceMode]);
+  }, [lineup, practiceMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 선출(선수 출신) 유효성 검사
   const eliteWarnings = useMemo(() => {
