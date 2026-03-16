@@ -79,12 +79,25 @@ export type ContentState = {
   teams: TeamsContent;
 };
 
+const OFFICIAL_RULES_DOC_URL =
+  'https://docs.google.com/document/d/e/2PACX-1vTLLfn8m4DqL659xzdJxJYMOCIfCl0dy-7X-dl4tDseIstuZSi4iVE2fHOscQyvbzz2zGA6-re5ZEMc/pub';
+const LEGACY_RULES_DOC_PATTERN = /2PACX-1vRYQNkS6wuqoYWokWN_rnPpmZuWLHcNyn_j5K5Vhw3g8voduO20VMJYFH_3FTjW9Whgk7nxywV8ps_9/;
+
+function normalizeRulesDocPath(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return OFFICIAL_RULES_DOC_URL;
+  if (trimmed === '/assets/homesteal-univleague-rules.pdf') return OFFICIAL_RULES_DOC_URL;
+  if (trimmed.startsWith('/assets/') && trimmed.toLowerCase().endsWith('.pdf')) return OFFICIAL_RULES_DOC_URL;
+  if (LEGACY_RULES_DOC_PATTERN.test(trimmed)) return OFFICIAL_RULES_DOC_URL;
+  return trimmed;
+}
+
 const DEFAULT_BRAND: BrandContent = {
   leagueName: 'HOMESTEAL UNIVLEAGUE',
   seasonLabel: '2026 HOMESTEAL CUP',
   leagueDescription: '대학야구교류전 공식 웹 플랫폼',
   instagramUrl: 'https://www.instagram.com/homesteal_univleague/',
-  rulesPdfPath: '/assets/homesteal-univleague-rules.pdf',
+  rulesPdfPath: OFFICIAL_RULES_DOC_URL,
   teamLogoPath: '/assets/homesteal.jpg',
   leagueLogoPath: '/assets/univ_league.jpg',
   accentRed: '#7a1221',
@@ -248,9 +261,14 @@ const DEFAULT_RULES: RulesContent = {
 const DEFAULT_TEAMS: TeamsContent = {
   pageBadge: 'HOMESTEAL · TEAMS',
   pageTitle: '2026 시즌 참가팀',
-  pageDescription: '홈스틸 유니브리그 참가팀은 시즌 공지를 통해 확정되며, 단일리그 운영 후 상위 4팀이 포스트시즌에 진출합니다.',
-  pageNote: '참가팀 명단은 리그 공지 및 대표자 회의 결과에 따라 업데이트됩니다.',
-  entries: [],
+  pageDescription: '2026 시즌 참가팀이 확정되었습니다. 단일리그 운영 후 상위 4팀이 포스트시즌에 진출합니다.',
+  pageNote: '참가팀은 대표자 회의 결과를 반영해 확정되었습니다.',
+  entries: [
+    { name: '중앙대 통일공대 홈스틸' },
+    { name: '중앙의대 MPD' },
+    { name: '경희대(서울) 브레이브스' },
+    { name: '중앙대 경영학부 다슬기스' },
+  ],
 };
 
 const defaultContent: ContentState = {
@@ -278,7 +296,7 @@ const LIVE_STORAGE_KEY = 'homesteal:content:live:v2';
 const STATIC_STORAGE_KEY = 'homesteal:content:static:v2';
 
 const LEGACY_CONTENT_PATTERN =
-  /AUBL|으뜸|버금|조편성|조별|승부예측|예선|본선|파워랭킹|Power Ranking|Bradley|Elo|BT Index|연합회|중앙대학교\\(서울\\)|중앙대학교 서울/i;
+  /AUBL|으뜸|버금|조편성|조별|승부예측|예선|본선|Bradley|Elo|BT Index|연합회|중앙대학교\\(서울\\)|중앙대학교 서울/i;
 const HOMESTEAL_IDENTITY_PATTERN = /HOMESTEAL|홈스틸|UNIVLEAGUE|유니브리그/i;
 
 const LEGACY_DOC = 'settings/homestealContent';
@@ -424,7 +442,10 @@ function normalizeBrand(value: unknown, fallback: BrandContent): BrandContent {
         ? next.leagueDescription.trim()
         : fallback.leagueDescription,
     instagramUrl: typeof next.instagramUrl === 'string' && next.instagramUrl.trim() ? next.instagramUrl.trim() : fallback.instagramUrl,
-    rulesPdfPath: typeof next.rulesPdfPath === 'string' && next.rulesPdfPath.trim() ? next.rulesPdfPath.trim() : fallback.rulesPdfPath,
+    rulesPdfPath:
+      typeof next.rulesPdfPath === 'string' && next.rulesPdfPath.trim()
+        ? normalizeRulesDocPath(next.rulesPdfPath)
+        : fallback.rulesPdfPath,
     teamLogoPath: typeof next.teamLogoPath === 'string' && next.teamLogoPath.trim() ? next.teamLogoPath.trim() : fallback.teamLogoPath,
     leagueLogoPath:
       typeof next.leagueLogoPath === 'string' && next.leagueLogoPath.trim() ? next.leagueLogoPath.trim() : fallback.leagueLogoPath,
